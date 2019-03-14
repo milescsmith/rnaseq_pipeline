@@ -1,19 +1,17 @@
 BASE_DIR:
-  /Volumes/guth_aci_informatics
+  memory_alpha
 SOURCE_DIR:
   /RNAseq
 RAW_DATA_DIR:
   /raw_data
 OUT_DIR:
-  /Virus
+  /results
 REF_DIR:
   /references
 SPECIES:
   /homo_sapiens
-GENOMIC:
-  /genomic
 SEQUENCES_DIR:
-  /sequences
+  /genomic/sequences
 GTF:
   /gencode.v29.annotation.gtf
 FASTA:
@@ -24,8 +22,6 @@ KALLISTO_INDEX:
   /indices/kallisto/gencode_v29_transcripts.idx
 RESOURCE_DIR:
   /miscellaneous
-GENOME_BUILD:
-  hg38
 POLY_A:
   /polyA.fa.gz
 TRUSEQ_RNA:
@@ -34,3 +30,6 @@ TRUSEQ:
   /truseq.fa.gz
 RRNAREF:
   /human_ribosomal.fa
+
+GENOME_BUILD:
+  hg38
