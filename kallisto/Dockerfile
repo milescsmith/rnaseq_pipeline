@@ -2,10 +2,7 @@ FROM ubuntu:18.04
 
 RUN apt-get update && apt-get install -y \
 		build-essential \
-		cmake \
-		python \
-		python-pip \
-		python-dev \
+		wget \
 		hdf5-tools \
 		libhdf5-dev \
 		hdf5-helpers \
