@@ -1,0 +1,4 @@
+ValueError in line 111 of /home/milo/workspace/rnaseq_pipeline/snakefile:
+not enough values to unpack (expected 2, got 0)
+  File "/home/milo/workspace/rnaseq_pipeline/snakefile", line 111, in <module>
+  File "/home/milo/miniconda3/lib/python3.6/site-packages/snakemake/remote/__init__.py", line 84, in remote

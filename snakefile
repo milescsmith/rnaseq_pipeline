@@ -20,15 +20,15 @@ configfile: "config.yaml"
 # in either YAML or JSON
 BASE_DIR = config["BASE_DIR"]
 SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
-# PROJECT_DIR = getcwd()
+PROJECT_DIR = SOURCE_DIR + config["PROJECT_DIR"]
 RAW_DATA_DIR = PROJECT_DIR + config["RAW_DATA_DIR"]
 OUT_DIR = PROJECT_DIR + config["OUT_DIR"]
 REF_DIR = BASE_DIR + config["REF_DIR"]
 SEQUENCES_DIR = REF_DIR + config["SEQUENCES_DIR"]
 GTF = SEQUENCES_DIR + config["GTF"]
 FASTA = SEQUENCES_DIR + config["FASTA"]
-STAR_INDEX = SPECIES + config["STAR_INDEX"]
-KALLISTO_INDEX = SPECIES + config["KALLISTO_INDEX"]
+STAR_INDEX = SEQUENCES_DIR + config["STAR_INDEX"]
+KALLISTO_INDEX = SEQUENCES_DIR + config["KALLISTO_INDEX"]
 RESOURCE_DIR = REF_DIR + config["RESOURCE_DIR"]
 GENOME_BUILD = config["GENOME_BUILD"]
 POLY_A = RESOURCE_DIR + config["POLY_A"]
@@ -77,11 +77,11 @@ rule perfom_trimming:
         truseq_adapter_ref=GS.remote(TRUSEQ),
         rRNA_ref=GS.remote(RRNAREF)
     output:
-        filteredR1=GS.remote('trimmed/{sample}.R1.fq.gz')
+        filteredR1=GS.remote('trimmed/{sample}.R1.fq.gz'),
         filteredR2=GS.remote('trimmed/{sample}.R2.fq.gz'),
         wasteR1=GS.remote('trimmed/removed_{sample}.R1.fq.gz'),
         wasteR2=GS.remote('trimmed/removed_{sample}.R2.fq.gz'),
-        contam=GS.remote('trimmed/contam_{sample}.csv' # to collect metrics on how many ribosomal reads were eliminated
+        contam=GS.remote('trimmed/contam_{sample}.csv') # to collect metrics on how many ribosomal reads were eliminated
     singularity:
         "docker://milescsmith/bbmap"
     version: 1.0
@@ -181,20 +181,19 @@ rule star_align_all:
 rule kallisto:
     """Psuedoalign sequences using Kallisto. MUCH faster than STAR and I'm not convinced that STAR is any better at the alignment."""
     input:
-        fq1='trimmed/{sample}.R1.fq.gz',
-        fq2='trimmed/{sample}.R2.fq.gz',
-        GTF=GTF
-        # wait='qc/trimmed/{sample}_fastqc.html'
+        fq1=GS.remote('trimmed/{sample}.R1.fq.gz'),
+        fq2=GS.remote('trimmed/{sample}.R2.fq.gz'),
+        GTF=GS.remote(GTF)
     output: 
-        'kallisto/{sample}/abundance.h5',
-        'kallisto/{sample}/abundance.tsv',
-        'kallisto/{sample}/run_info.json'
+        GS.remote('kallisto/{sample}/abundance.h5'),
+        GS.remote('kallisto/{sample}/abundance.tsv'),
+        GS.remote('kallisto/{sample}/run_info.json')
     params:
-        index=KALLISTO_INDEX,
+        index=GS.remote(KALLISTO_INDEX),
         threads=THREADS,
-        out_dir='kallisto/{sample}/'
+        out_dir=GS.remote('kallisto/{sample}/')
     log:
-        "logs/kallisto/kallisto_{sample}.log"
+        GS.remote("logs/kallisto/kallisto_{sample}.log")
     singularity:
         "docker://milescsmith/kallisto"
     version: 1.0
@@ -203,7 +202,7 @@ rule kallisto:
 
 rule kallisto_quant_all:
     """Target rule to force alignement of all the samples. If aligning with Kallisto, use this as the target run since Kallisto typically does not make the bam files needed below."""
-    input: expand("kallisto/{sample}/abundance.h5", sample=SAMPLES)
+    input: GS.remote(expand("kallisto/{sample}/abundance.h5", sample=SAMPLES))
 
 rule sort:
     """Sort STAR-aligned sequences to allow Stringtie quantification."""

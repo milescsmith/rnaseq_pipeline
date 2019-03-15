@@ -1,0 +1,3 @@
+NameError in line 30 of /home/milo/workspace/rnaseq_pipeline/snakefile:
+name 'SPECIES' is not defined
+  File "/home/milo/workspace/rnaseq_pipeline/snakefile", line 30, in <module>

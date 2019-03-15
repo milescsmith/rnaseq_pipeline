@@ -1,0 +1,13 @@
+KeyboardInterrupt in line 50 of /home/milo/workspace/rnaseq_pipeline/snakefile.
+  File "/home/milo/workspace/rnaseq_pipeline/snakefile", line 50, in <module>
+  File "/home/milo/miniconda3/lib/python3.6/site-packages/snakemake/remote/__init__.py", line 99, in remote
+  File "/home/milo/miniconda3/lib/python3.6/site-packages/snakemake/remote/GS.py", line 28, in __init__
+  File "/home/milo/miniconda3/lib/python3.6/site-packages/google/cloud/storage/client.py", line 73, in __init__
+  File "/home/milo/miniconda3/lib/python3.6/site-packages/google/cloud/client.py", line 224, in __init__
+  File "/home/milo/miniconda3/lib/python3.6/site-packages/google/cloud/client.py", line 130, in __init__
+  File "/home/milo/miniconda3/lib/python3.6/site-packages/google/auth/_default.py", line 287, in default
+  File "/home/milo/miniconda3/lib/python3.6/site-packages/google/auth/_default.py", line 130, in _get_gcloud_sdk_credentials
+  File "/home/milo/miniconda3/lib/python3.6/site-packages/google/auth/_cloud_sdk.py", line 127, in get_project_id
+  File "/home/milo/miniconda3/lib/python3.6/subprocess.py", line 356, in check_output
+  File "/home/milo/miniconda3/lib/python3.6/subprocess.py", line 425, in run
+  File "/home/milo/miniconda3/lib/python3.6/subprocess.py", line 850, in communicate

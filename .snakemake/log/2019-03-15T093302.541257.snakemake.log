@@ -1,0 +1,3 @@
+NameError in line 24 of /home/milo/workspace/rnaseq_pipeline/snakefile:
+name 'PROJECT_DIR' is not defined
+  File "/home/milo/workspace/rnaseq_pipeline/snakefile", line 24, in <module>

@@ -4,6 +4,8 @@ SOURCE_DIR:
   /RNAseq
 RAW_DATA_DIR:
   /raw_data
+PROJECT_DIR:
+  /hyperprep_trial
 OUT_DIR:
   /results
 REF_DIR:

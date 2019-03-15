@@ -1,0 +1,2 @@
+SyntaxError in line 188 of /home/milo/workspace/rnaseq_pipeline/snakefile:
+EOF in multi-line statement (snakefile, line 188)
