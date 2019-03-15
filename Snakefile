@@ -356,3 +356,4 @@ rule run_kallisto_multiqc:
 rule kallisto_with_qc:
     input: GS.remote(OUT_DIR+"multiqc_kallisto_align_report.html")
     version: 1.1
+
