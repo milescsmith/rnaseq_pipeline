@@ -82,6 +82,8 @@ rule perfom_trimming:
         wasteR1='trimmed/removed_{sample}.R1.fq.gz',
         wasteR2='trimmed/removed_{sample}.R2.fq.gz',
         contam='trimmed/contam_{sample}.csv' # to collect metrics on how many ribosomal reads were eliminated
+    singularity:
+        "docker://milescsmith/bbmap"
     version: 1.0
     shell:
         """
@@ -193,6 +195,8 @@ rule kallisto:
         out_dir='kallisto/{sample}/'
     log:
         "logs/kallisto/kallisto_{sample}.log"
+    singularity:
+        "docker://milescsmith/kallisto"
     version: 1.0
     shell:
         "kallisto quant -t {params.threads} -o {params.out_dir} -i {params.index} --rf-stranded --genomebam --gtf {input.GTF} --bias {input.fq1} {input.fq2}"
