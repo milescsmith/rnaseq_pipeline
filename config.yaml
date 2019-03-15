@@ -1,7 +1,7 @@
 BASE_DIR:
   memory_alpha
 SOURCE_DIR:
-  /RNAseq
+  /datasets/RNAseq
 RAW_DATA_DIR:
   /raw_data
 PROJECT_DIR:
@@ -34,4 +34,3 @@ RRNAREF:
   /human_ribosomal.fa
 
 GENOME_BUILD:
-  hg38
