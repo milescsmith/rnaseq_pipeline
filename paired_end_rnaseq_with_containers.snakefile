@@ -12,19 +12,19 @@ from os.path import join
 from os import getcwd
 import glob
 import re
+from snakemake.remote.GS import RemoteProvider as GSRemoteProvider
+GS = GSRemoteProvider()
 
-configfile: "/Volumes/guth_aci_informatics/software/snakemake/config.yaml"
+configfile: "config.yaml"
 # this is entirely because it does not seem to be possible to concatenate values
 # in either YAML or JSON
 BASE_DIR = config["BASE_DIR"]
 SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
-PROJECT_DIR = getcwd()
+# PROJECT_DIR = getcwd()
 RAW_DATA_DIR = PROJECT_DIR + config["RAW_DATA_DIR"]
 OUT_DIR = PROJECT_DIR + config["OUT_DIR"]
 REF_DIR = BASE_DIR + config["REF_DIR"]
-GENOMIC = REF_DIR + config["GENOMIC"]
-SPECIES = GENOMIC + config["SPECIES"]
-SEQUENCES_DIR = SPECIES + config["SEQUENCES_DIR"]
+SEQUENCES_DIR = REF_DIR + config["SEQUENCES_DIR"]
 GTF = SEQUENCES_DIR + config["GTF"]
 FASTA = SEQUENCES_DIR + config["FASTA"]
 STAR_INDEX = SPECIES + config["STAR_INDEX"]
@@ -39,16 +39,16 @@ RRNAREF = RESOURCE_DIR + config["RRNAREF"]
 THREADS = 8
 
 # The list of samples to be processed
-SAMPLES = glob.glob(f'{RAW_DATA_DIR}**/*.fastq.gz', recursive=False)
-SAMPLES = [sample.replace(f'{RAW_DATA_DIR}/','').replace('.fastq.gz','') for sample in SAMPLES]
+SAMPLES = glob.glob(f'{GS.remote(RAW_DATA_DIR)}**/*.fastq.gz', recursive=False)
+SAMPLES = [sample.replace(f'{GS.remote(RAW_DATA_DIR)}/','').replace('.fastq.gz','') for sample in SAMPLES]
 SAMPLES = [('_').join(sample.split('_')[:-2])  for sample in SAMPLES]
 SAMPLES = [_.split('/')[-1] for _ in SAMPLES]
 
 rule initial_qc:
     """Use Fastqc to examine the quality of the fastqs from the CGC."""
     input:
-        R1=RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz',
-        R2=RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz'
+        R1=GS.remote(RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz'),
+        R2=GS.remote(RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz')
     params:
         f'--threads {THREADS}'
     output:
@@ -66,22 +66,22 @@ rule initial_qc_all:
 rule perfom_trimming:
     """Use BBmap to trim known adaptors, low quality reads, and polyadenylated sequences and filter out ribosomal reads"""
     input:
-        R1=RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz',
-        R2=RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz',
+        R1=GS.remote(RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz'),
+        R2=GS.remote(RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz'),
     	wait='qc/initial/{sample}_fastqc.zip'
     params:
         out_dir='trimmed',
         phred_cutoff=5,
-        polyA_ref=POLY_A,
-        truseq_rna_adapter_ref=TRUSEQ_RNA,
-        truseq_adapter_ref=TRUSEQ,
-        rRNA_ref=RRNAREF
+        polyA_ref=GS.remote(POLY_A),
+        truseq_rna_adapter_ref=GS.remote(TRUSEQ_RNA),
+        truseq_adapter_ref=GS.remote(TRUSEQ),
+        rRNA_ref=GS.remote(RRNAREF)
     output:
-        filteredR1='trimmed/{sample}.R1.fq.gz',
-        filteredR2='trimmed/{sample}.R2.fq.gz',
-        wasteR1='trimmed/removed_{sample}.R1.fq.gz',
-        wasteR2='trimmed/removed_{sample}.R2.fq.gz',
-        contam='trimmed/contam_{sample}.csv' # to collect metrics on how many ribosomal reads were eliminated
+        filteredR1=GS.remote('trimmed/{sample}.R1.fq.gz')
+        filteredR2=GS.remote('trimmed/{sample}.R2.fq.gz'),
+        wasteR1=GS.remote('trimmed/removed_{sample}.R1.fq.gz'),
+        wasteR2=GS.remote('trimmed/removed_{sample}.R2.fq.gz'),
+        contam=GS.remote('trimmed/contam_{sample}.csv' # to collect metrics on how many ribosomal reads were eliminated
     singularity:
         "docker://milescsmith/bbmap"
     version: 1.0
@@ -106,13 +106,13 @@ rule perfom_trimming:
                 minlength=20
         """
 
-# rule expand_trimming:
-#     input: 
-#         R1=expand('trimmed/{sample}.R1.fq.gz', sample = SAMPLES),
-#         R2=expand('trimmed/{sample}.R2.fq.gz', sample = SAMPLES),
-#         wasteR1=expand('trimmed/removed_{sample}.R1.fq.gz', sample = SAMPLES),
-#         wasteR2=expand('trimmed/removed_{sample}.R2.fq.gz', sample = SAMPLES),
-#         contam=expand('trimmed/contam_{sample}.txt', sample = SAMPLES)
+rule expand_trimming:
+    input: 
+        R1=GS.remote(expand('trimmed/{sample}.R1.fq.gz', sample = SAMPLES)),
+        R2=GS.remote(expand('trimmed/{sample}.R2.fq.gz', sample = SAMPLES)),
+        wasteR1=GS.remote(expand('trimmed/removed_{sample}.R1.fq.gz', sample = SAMPLES)),
+        wasteR2=GS.remote(expand('trimmed/removed_{sample}.R2.fq.gz', sample = SAMPLES)),
+        contam=GS.remote(expand('trimmed/contam_{sample}.txt', sample = SAMPLES))
 
 # Examine the quality of the trimmed fastqs
 # Typically not run.
