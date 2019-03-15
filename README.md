@@ -1,5 +1,5 @@
-# snakemake_scripts
+# rnaseq_pipeline
 
-My collection snakemake scripts for processing various types of (for now) sequencing data.
+Snakemake scripts and associated resources for processing RNAseq data via Google Cloud services.
 
-The paired_end_rnaseq.snakefile is probably the best example of a working script.  Currently, it is designed to handle data generated from KAPA Hyperprep RNA-seq libraries sequenced on Illumina Nextseq/Novaseq sequencers.
+This script in particular is designed to handle data generated from KAPA Hyperprep RNA-seq libraries sequenced on Illumina Nextseq/Novaseq sequencers.  Very much still a work in progress.
