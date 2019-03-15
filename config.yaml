@@ -13,15 +13,15 @@ REF_DIR:
 SPECIES:
   /homo_sapiens
 SEQUENCES_DIR:
-  /genomic/sequences
+  /genomic
 GTF:
-  /gencode.v29.annotation.gtf
+  /homo_sapiens/sequences/gencode.v29.annotation.gtf
 FASTA:
-  /GRCh38.primary_assembly.genome.fa.gz
+  /homo_sapiens/sequences/GRCh38.primary_assembly.genome.fa.gz
 STAR_INDEX:
-  /indices/star/gencode_v28_with_virus
+  /homo_sapiens/indices/star/gencode_v28_with_virus
 KALLISTO_INDEX:
-  /indices/kallisto/gencode_v29_transcripts.idx
+  /homo_sapiens/indices/kallisto/gencode_v29_transcripts.idx
 RESOURCE_DIR:
   /miscellaneous
 POLY_A:
