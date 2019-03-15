@@ -1,18 +1,18 @@
 FROM ubuntu:18.04
 
 RUN apt-get update && apt-get install -y \
-	build-essential \
-	openjdk-11-jre \
-	wget \
-
-ENV BBMAP_VERSION 38.20
-ENV BBMAP_DIR /usr/local/bbmap
+    build-essential \
+    openjdk-11-jre \
+    wget \
+    && apt-get clean \
+    && rm -rf /tmp/downloaded_packages/ /tmp/*.rds \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
 RUN wget -O BBMap.tar.gz https://sourceforge.net/projects/bbmap/files/BBMap_38.42.tar.gz/download && \
-    tar xzf BBMap_38.42.tar.gz && \
+    tar xzf BBMap.tar.gz && \
     mv bbmap /usr/local && \
-    rm -rf BBMap_38.42.tar.gz
+    rm -rf BBMap.tar.gz
 
 ENV PATH="/usr/local/bbmap:${PATH}"
 
