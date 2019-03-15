@@ -69,7 +69,7 @@ rule perfom_trimming:
     input:
         R1=GS.remote(RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz'),
         R2=GS.remote(RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz'),
-        wait='qc/initial/{sample}_fastqc.zip'
+        wait=GS.remote(OUT_DIR+'qc/initial/{sample}_fastqc.zip')
     params:
         out_dir='trimmed',
         phred_cutoff=5,
