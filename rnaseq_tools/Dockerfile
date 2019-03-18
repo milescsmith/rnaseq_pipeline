@@ -11,7 +11,9 @@ RUN apt-get update && apt-get install -y \
     hdf5-helpers \
     libhdf5-serial-dev \
     git \
-    apt-utils
+    apt-utils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/log/dpkg.log
 
 WORKDIR /root
 
