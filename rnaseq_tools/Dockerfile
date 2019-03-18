@@ -4,7 +4,7 @@ LABEL description="Tools to run an RNAseq QC and alignemtns processing Snakemake
 LABEL tags="Genomics"
 MAINTAINER Miles Smith <miles-smith@omrf.org>
 
-RUN apt-get update && apt-get install -y — no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     hdf5-tools \
     libhdf5-dev \
@@ -17,7 +17,9 @@ RUN apt-get update && apt-get install -y — no-install-recommends \
 
 WORKDIR /root
 
-RUN conda install -y -c conda-forge \
+RUN conda config --add channels conda-forge \
+    && conda config --add channels bioconda \
+    && conda install -y -c conda-forge \
     hdf5 \
     kubernetes=1.13.4 \
     && conda install -y -c bioconda \

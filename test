@@ -1,0 +1,68 @@
+"""
+Author: Miles Smith
+Affiliation: OMRF
+Aim: Snakemake workflow to process HyperPrep RNA-Seq data
+Date: 2019/02/28
+"""
+version: 2.1
+
+from pathlib import Path
+from itertools import chain, combinations
+from os.path import join
+from os import getcwd
+import glob
+import re
+from snakemake.remote.GS import RemoteProvider as GSRemoteProvider
+GS = GSRemoteProvider()
+
+configfile: "config.yaml"
+# this is entirely because it does not seem to be possible to concatenate values
+# in either YAML or JSON
+BASE_DIR = config["BASE_DIR"]
+SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
+PROJECT_DIR = SOURCE_DIR + config["PROJECT_DIR"]
+RAW_DATA_DIR = PROJECT_DIR + config["RAW_DATA_DIR"]
+OUT_DIR = PROJECT_DIR + config["OUT_DIR"]
+REF_DIR = BASE_DIR + config["REF_DIR"]
+SEQUENCES_DIR = REF_DIR + config["SEQUENCES_DIR"]
+GTF = SEQUENCES_DIR + config["GTF"]
+FASTA = SEQUENCES_DIR + config["FASTA"]
+STAR_INDEX = SEQUENCES_DIR + config["STAR_INDEX"]
+KALLISTO_INDEX = SEQUENCES_DIR + config["KALLISTO_INDEX"]
+RESOURCE_DIR = REF_DIR + config["RESOURCE_DIR"]
+GENOME_BUILD = config["GENOME_BUILD"]
+POLY_A = RESOURCE_DIR + config["POLY_A"]
+TRUSEQ_RNA = RESOURCE_DIR + config["TRUSEQ_RNA"]
+TRUSEQ = RESOURCE_DIR + config["TRUSEQ"]
+RRNAREF = RESOURCE_DIR + config["RRNAREF"]
+
+THREADS = 8
+
+# The list of samples to be processed
+#SAMPLES = glob.glob(f'{RAW_DATA_DIR}**/*.fastq.gz', recursive=False)
+SAMPLES = GS.glob_wildcards(RAW_DATA_DIR + '/{samplename}.fastq.gz')
+SAMPLES = SAMPLES.samplename
+#SAMPLES = [sample.replace(f'{RAW_DATA_DIR}/','').replace('.fastq.gz','') for sample in SAMPLES]
+SAMPLES = [('_').join(sample.split('_')[:-2])  for sample in SAMPLES]
+SAMPLES = [_.split('/')[-1] for _ in SAMPLES]
+print(RAW_DATA_DIR)
+print(SAMPLES)
+rule initial_qc:
+    """Use Fastqc to examine the quality of the fastqs from the CGC."""
+    input:
+        R1=GS.remote(RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz'),
+        R2=GS.remote(RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz')
+    params:
+        f'--threads {THREADS}'
+    output:
+        html='qc/initial/{sample}_fastqc.html',
+        zip='qc/initial/{sample}_fastqc.zip'
+    log:
+        "logs/fastqc/fastqc_{sample}.log"
+    wrapper: "0.31.0/bio/fastqc"
+
+rule initial_qc_all:
+    """Target rule to run just the inital Fastqc"""
+    input: expand("qc/initial/{sample}_fastqc.html", sample=SAMPLES)
+    version: 1.0
+
