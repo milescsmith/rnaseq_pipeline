@@ -51,17 +51,27 @@ rule initial_qc:
         R1=GS.remote(RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz'),
         R2=GS.remote(RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz')
     params:
-        f'--threads {THREADS}'
+        threads=f"--threads {THREADS}",
+        outdir=GS.remote(OUT_DIR+"/qc/initial/{sample}")
     output:
-        html=GS.remote(OUT_DIR+'qc/initial/{sample}_fastqc.html'),
-        zip=GS.remote(OUT_DIR+'qc/initial/{sample}_fastqc.zip')
+        html=GS.remote(OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.html'),
+        zip=GS.remote(OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.zip')
+    singularity:
+        "docker://milescsmith/fastqc"
     log:
-        GS.remote(OUT_DIR+"logs/fastqc/fastqc_{sample}.log")
-    wrapper: "0.31.0/bio/fastqc"
+        GS.remote(OUT_DIR+"/logs/fastqc/fastqc_{sample}.log")
+        
+    shell:
+        """
+        fastqc {params.threads} \
+            --quiet \
+            --outdir {params.outdir} \
+            {input.R1} {input.R2}
+        """
 
 rule initial_qc_all:
     """Target rule to run just the inital Fastqc"""
-    input: GS.remote(expand(OUT_DIR+"qc/initial/{sample}_fastqc.html", sample=SAMPLES))
+    input: GS.remote(expand(OUT_DIR+"/qc/initial/{sample}/{sample}_fastqc.html", sample=SAMPLES))
     version: 2.0
 
 rule perfom_trimming:
@@ -69,7 +79,7 @@ rule perfom_trimming:
     input:
         R1=GS.remote(RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz'),
         R2=GS.remote(RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz'),
-        wait=GS.remote(OUT_DIR+'qc/initial/{sample}_fastqc.zip')
+        wait=GS.remote(OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.zip')
     params:
         out_dir='trimmed',
         phred_cutoff=5,
@@ -344,14 +354,18 @@ rule star_with_qc:
 
 rule run_kallisto_multiqc:
     input:
-        GS.remote(expand(OUT_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES)),
+        GS.remote(expand(OUT_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES))
     output:
         name=GS.remote(OUT_DIR+"multiqc_kallisto_align_report.html")
+    params:
+        proj_dir=GS.remote(PROJECT_DIR)
     log:
         GS.remote(OUT_DIR+"logs/multiqc.html")
     version: 1.1
+    singularity:
+        "docker://ewels/multiqc"
     shell:
-        "multiqc --force . -n {output}"
+        "multiqc --force {params.proj_dir} -n {output}"
 
 rule kallisto_with_qc:
     input: GS.remote(OUT_DIR+"multiqc_kallisto_align_report.html")
