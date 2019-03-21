@@ -60,7 +60,6 @@ rule initial_qc:
         "docker://milescsmith/fastqc"
     log:
         GS.remote(OUT_DIR+"/logs/fastqc/fastqc_{sample}.log")
-        
     shell:
         """
         fastqc {params.threads} \
