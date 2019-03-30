@@ -54,12 +54,12 @@ rule initial_qc:
         threads=f"--threads {THREADS}",
         outdir=GS.remote(OUT_DIR+"/qc/initial/{sample}")
     output:
-        html=GS.remote(OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.html'),
-        zip=GS.remote(OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.zip')
+        html=OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.html',
+        zip=OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.zip'
     singularity:
         "docker://milescsmith/fastqc"
     log:
-        GS.remote(OUT_DIR+"/logs/fastqc/fastqc_{sample}.log")
+        "/logs/fastqc/fastqc_{sample}.log"
     shell:
         """
         fastqc {params.threads} \
@@ -70,7 +70,7 @@ rule initial_qc:
 
 rule initial_qc_all:
     """Target rule to run just the inital Fastqc"""
-    input: GS.remote(expand(OUT_DIR+"/qc/initial/{sample}/{sample}_fastqc.html", sample=SAMPLES))
+    input: expand(OUT_DIR+"/qc/initial/{sample}/{sample}_fastqc.html", sample=SAMPLES)
     version: 2.0
 
 rule perfom_trimming:
@@ -78,7 +78,7 @@ rule perfom_trimming:
     input:
         R1=GS.remote(RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz'),
         R2=GS.remote(RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz'),
-        wait=GS.remote(OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.zip')
+        wait='/qc/initial/{sample}/{sample}_fastqc.zip'
     params:
         out_dir='trimmed',
         phred_cutoff=5,
@@ -91,7 +91,7 @@ rule perfom_trimming:
         filteredR2='trimmed/{sample}.R2.fq.gz',
         wasteR1='trimmed/removed_{sample}.R1.fq.gz',
         wasteR2='trimmed/removed_{sample}.R2.fq.gz',
-        contam=GS.remote(OUT_DIR+'logs/contam_{sample}.csv') # to collect metrics on how many ribosomal reads were eliminated
+        contam='logs/contam_{sample}.csv' # to collect metrics on how many ribosomal reads were eliminated
     singularity:
         "docker://milescsmith/bbmap"
     version: 2.0
@@ -122,7 +122,7 @@ rule expand_trimming:
         R2=expand('trimmed/{sample}.R2.fq.gz', sample = SAMPLES),
         wasteR1=expand('trimmed/removed_{sample}.R1.fq.gz', sample = SAMPLES),
         wasteR2=expand('trimmed/removed_{sample}.R2.fq.gz', sample = SAMPLES),
-        contam=GS.remote(expand(OUT_DIR+'logs/contam_{sample}.txt', sample = SAMPLES))
+        contam=expand(OUT_DIR+'logs/contam_{sample}.txt', sample = SAMPLES)
 
 # Examine the quality of the trimmed fastqs
 # Typically not run.
@@ -138,8 +138,8 @@ rule trimmed_qc:
     shadow:
         "shallow"
     output:
-        html=GS.remote(OUT_DIR+'qc/trimmed/{sample}_fastqc.html'),
-        zip=GS.remote(OUT_DIR+'qc/trimmed/{sample}_fastqc.zip')
+        html=OUT_DIR+'qc/trimmed/{sample}_fastqc.html',
+        zip=OUT_DIR+'qc/trimmed/{sample}_fastqc.zip'
     wrapper: "0.31.0/bio/fastqc"
     
 rule star_align:
@@ -149,13 +149,14 @@ rule star_align:
         fq2='trimmed/{sample}.R2.fq.gz',
         annotation=GS.remote(GTF)
         # wait=GS.remote(OUT_DIR+'qc/trimmed/{sample}_fastqc.html')
-    output: GS.remote(OUT_DIR+"star/{sample}/Aligned.sortedByCoord.out.bam")
+    output: 
+        "star/{sample}/Aligned.sortedByCoord.out.bam"
         # see STAR manual for additional output files
         # "star/{sample}/Aligned.out.bam"
         # "star/{sample}/Log.final.out"
         # "star/{sample}/ReadsPerGene.out.tab"
     log:
-        GS.remote(OUT_DIR+"logs/star/{sample}/Log.final.out")
+        OUT_DIR+"logs/star/{sample}/Log.final.out"
     params:
         # path to STAR reference genome index
         index=STAR_INDEX,
@@ -184,7 +185,7 @@ rule star_align:
 
 rule star_align_all:
     input:
-        GS.remote(expand("star/{sample}/Aligned.sortedByCoord.out.bam", sample = SAMPLES))
+        expand("star/{sample}/Aligned.sortedByCoord.out.bam", sample = SAMPLES)
     version: 1.0
 
 rule kallisto:
@@ -194,15 +195,15 @@ rule kallisto:
         fq2='trimmed/{sample}.R2.fq.gz',
         GTF=GS.remote(GTF)
     output: 
-        GS.remote(OUT_DIR+'kallisto/{sample}/abundance.h5'),
-        GS.remote(OUT_DIR+'kallisto/{sample}/abundance.tsv'),
-        GS.remote(OUT_DIR+'kallisto/{sample}/run_info.json')
+        OUT_DIR+'kallisto/{sample}/abundance.h5',
+        OUT_DIR+'kallisto/{sample}/abundance.tsv',
+        OUT_DIR+'kallisto/{sample}/run_info.json'
     params:
         index=GS.remote(KALLISTO_INDEX),
         threads=THREADS,
         out_dir='kallisto/{sample}/'
     log:
-        GS.remote(OUT_DIR+"logs/kallisto/kallisto_{sample}.log")
+        OUT_DIR+"logs/kallisto/kallisto_{sample}.log"
     singularity:
         "docker://milescsmith/kallisto"
     version: 1.0
@@ -211,7 +212,7 @@ rule kallisto:
 
 rule kallisto_quant_all:
     """Target rule to force alignement of all the samples. If aligning with Kallisto, use this as the target run since Kallisto typically does not make the bam files needed below."""
-    input: GS.remote(expand(OUT_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES))
+    input: expand(OUT_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES)
 
 rule sort:
     """Sort STAR-aligned sequences to allow Stringtie quantification."""
@@ -353,13 +354,13 @@ rule star_with_qc:
 
 rule run_kallisto_multiqc:
     input:
-        GS.remote(expand(OUT_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES))
+        expand(OUT_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES)
     output:
-        name=GS.remote(OUT_DIR+"multiqc_kallisto_align_report.html")
+        name=OUT_DIR+"multiqc_kallisto_align_report.html"
     params:
-        proj_dir=GS.remote(PROJECT_DIR)
+        proj_dir=PROJECT_DIR
     log:
-        GS.remote(OUT_DIR+"logs/multiqc.html")
+        OUT_DIR+"logs/multiqc.html"
     version: 1.1
     singularity:
         "docker://ewels/multiqc"
@@ -367,6 +368,6 @@ rule run_kallisto_multiqc:
         "multiqc --force {params.proj_dir} -n {output}"
 
 rule kallisto_with_qc:
-    input: GS.remote(OUT_DIR+"multiqc_kallisto_align_report.html")
+    input: OUT_DIR+"multiqc_kallisto_align_report.html"
     version: 1.1
 
