@@ -5,7 +5,7 @@ SOURCE_DIR:
 RAW_DATA_DIR:
   /raw_data
 PROJECT_DIR:
-  /hyperprep_trial
+  /zencor
 OUT_DIR:
   /results
 REF_DIR:
@@ -32,5 +32,5 @@ TRUSEQ:
   /truseq.fa.gz
 RRNAREF:
   /human_ribosomal.fa
-
 GENOME_BUILD:
+  hg38
