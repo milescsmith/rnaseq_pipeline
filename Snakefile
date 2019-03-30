@@ -156,7 +156,7 @@ rule star_align:
         # "star/{sample}/Log.final.out"
         # "star/{sample}/ReadsPerGene.out.tab"
     log:
-        OUT_DIR+"logs/star/{sample}/Log.final.out"
+        OUT_DIR+"/logs/star/{sample}/Log.final.out"
     params:
         # path to STAR reference genome index
         index=STAR_INDEX,
@@ -203,7 +203,7 @@ rule kallisto:
         threads=THREADS,
         out_dir='kallisto/{sample}/'
     log:
-        OUT_DIR+"logs/kallisto/kallisto_{sample}.log"
+        OUT_DIR+"/logs/kallisto/kallisto_{sample}.log"
     singularity:
         "docker://milescsmith/kallisto"
     version: 1.0
@@ -212,7 +212,7 @@ rule kallisto:
 
 rule kallisto_quant_all:
     """Target rule to force alignement of all the samples. If aligning with Kallisto, use this as the target run since Kallisto typically does not make the bam files needed below."""
-    input: expand(OUT_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES)
+    input: expand(OUT_DIR+"/kallisto/{sample}/abundance.h5", sample=SAMPLES)
 
 rule sort:
     """Sort STAR-aligned sequences to allow Stringtie quantification."""
@@ -354,13 +354,13 @@ rule star_with_qc:
 
 rule run_kallisto_multiqc:
     input:
-        expand(OUT_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES)
+        expand(OUT_DIR+"/kallisto/{sample}/abundance.h5", sample=SAMPLES)
     output:
-        name=OUT_DIR+"multiqc_kallisto_align_report.html"
+        name=OUT_DIR+"/multiqc_kallisto_align_report.html"
     params:
         proj_dir=PROJECT_DIR
     log:
-        OUT_DIR+"logs/multiqc.html"
+        OUT_DIR+"/logs/multiqc.html"
     version: 1.1
     singularity:
         "docker://ewels/multiqc"
@@ -368,6 +368,6 @@ rule run_kallisto_multiqc:
         "multiqc --force {params.proj_dir} -n {output}"
 
 rule kallisto_with_qc:
-    input: OUT_DIR+"multiqc_kallisto_align_report.html"
+    input: OUT_DIR+"/multiqc_kallisto_align_report.html"
     version: 1.1
 
