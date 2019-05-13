@@ -1,19 +1,19 @@
 BASE_DIR:
-  memory_alpha
+  /home/mileschristiansmith_gmail_com/workspace
 SOURCE_DIR:
-  /datasets/RNAseq
+  /ale06
+PROJECT_DIR:
+  /20190508
 RAW_DATA_DIR:
   /raw_data
-PROJECT_DIR:
-  /zencor
 OUT_DIR:
   /results
 REF_DIR:
   /references
-SPECIES:
-  /homo_sapiens
 SEQUENCES_DIR:
   /genomic
+SPECIES:
+  /homo_sapiens
 GTF:
   /homo_sapiens/sequences/gencode.v29.annotation.gtf
 FASTA:
