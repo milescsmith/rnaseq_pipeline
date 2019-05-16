@@ -8,7 +8,8 @@ snakemake \
 --mem={cluster.mem} \
 --nodes={cluster.nodes} \
 --export={cluster.path},{cluster.java_opts}"  \
---jobs 12 \
+--jobs 24 \
 --snakefile $HOME/workspace/rnaseq_pipeline/Snakefile \
 --use-conda \
+--latency-wait 30 \
 --rerun-incomplete kallisto_with_qc
