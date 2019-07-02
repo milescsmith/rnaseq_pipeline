@@ -1,9 +1,9 @@
 BASE_DIR:
   /home/mileschristiansmith_gmail_com/workspace
 SOURCE_DIR:
-  /ale06
+  /s4
 PROJECT_DIR:
-  /20190508
+  /S4_4
 RAW_DATA_DIR:
   /raw_data
 OUT_DIR:

@@ -70,7 +70,7 @@ rule initial_qc:
 
 rule initial_qc_all:
     """Target rule to run just the inital Fastqc"""
-    input: 
+    input:
         R1=expand("qc/initial/{sample}/{sample}_R1_001_fastqc.html", sample=SAMPLES),
         R2=expand("qc/initial/{sample}/{sample}_R2_001_fastqc.html", sample=SAMPLES)
     version: 2.0
@@ -119,7 +119,7 @@ rule perfom_trimming:
         """
 
 rule expand_trimming:
-    input: 
+    input:
         R1=expand('trimmed/{sample}.R1.fq.gz', sample = SAMPLES),
         R2=expand('trimmed/{sample}.R2.fq.gz', sample = SAMPLES),
         wasteR1=expand('trimmed/removed_{sample}.R1.fq.gz', sample = SAMPLES),
@@ -132,7 +132,7 @@ rule kallisto:
         fq1='trimmed/{sample}.R1.fq.gz',
         fq2='trimmed/{sample}.R2.fq.gz',
         GTF=GTF
-    output: 
+    output:
         'kallisto/{sample}/abundance.h5',
         'kallisto/{sample}/abundance.tsv',
         'kallisto/{sample}/run_info.json'
@@ -146,7 +146,7 @@ rule kallisto:
     #    "docker://milescsmith/kallisto"
     version: 1.0
     shell:
-        "kallisto quant -t {params.threads} -o {params.out_dir} -i {params.index} --rf-stranded --genomebam --gtf {input.GTF} --bias {input.fq1} {input.fq2}"
+        "kallisto quant -t {params.threads} -o {params.out_dir} -i {params.index} --rf-stranded --bootstrap-samples=12 --gtf {input.GTF} --bias {input.fq1} {input.fq2}"
 
 rule kallisto_quant_all:
     """Target rule to force alignement of all the samples. If aligning with Kallisto, use this as the target run since Kallisto typically does not make the bam files needed below."""

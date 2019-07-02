@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 snakemake \
---configfile $HOME/workspace/rnaseq_pipeline/config.yaml \
+--configfile $PWD/config.yaml \
 --cluster-config $HOME/workspace/rnaseq_pipeline/cluster.json \
 --cluster \
 "sbatch -p {cluster.partition} \
@@ -8,7 +8,7 @@ snakemake \
 --mem={cluster.mem} \
 --nodes={cluster.nodes} \
 --export={cluster.path},{cluster.java_opts}"  \
---jobs 24 \
+--jobs 32 \
 --snakefile $HOME/workspace/rnaseq_pipeline/Snakefile \
 --use-conda \
 --latency-wait 30 \
