@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
-RUN wget -O BBMap.tar.gz https://sourceforge.net/projects/bbmap/files/BBMap_38.42.tar.gz/download && \
+RUN wget -O BBMap.tar.gz https://sourceforge.net/projects/bbmap/files/BBMap_38.56.tar.gz/download && \
     tar xzf BBMap.tar.gz && \
     mv bbmap /usr/local && \
     rm -rf BBMap.tar.gz
