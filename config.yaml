@@ -1,15 +1,15 @@
 BASE_DIR:
-  /home/mileschristiansmith_gmail_com/workspace
+  /s
 SOURCE_DIR:
-  /ale06
+  /guth-aci
 PROJECT_DIR:
-  /20190508
+  /metro
 RAW_DATA_DIR:
   /raw_data
 OUT_DIR:
   /results
 REF_DIR:
-  /references
+  /Volumes/guth_aci_informatics/references
 SEQUENCES_DIR:
   /genomic
 SPECIES:
