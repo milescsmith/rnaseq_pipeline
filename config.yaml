@@ -1,13 +1,15 @@
 BASE_DIR:
-  /s
+  /s/guth-aci
 SOURCE_DIR:
-  /guth-aci
+  /s4
 PROJECT_DIR:
-  /metro
+  /s45
 RAW_DATA_DIR:
-  /raw_data
-OUT_DIR:
-  /results
+  /data/raw_data/fastqs/s45
+RESULTS_DIR:
+  /data/results
+LOG_DIR:
+  /logs
 REF_DIR:
   /Volumes/guth_aci_informatics/references
 SEQUENCES_DIR:

@@ -2,9 +2,9 @@
 Author: Miles Smith
 Affiliation: OMRF
 Aim: Snakemake workflow to process HyperPrep RNA-Seq data
-Date: 2019/02/28
+Date: 2019/07/22
 """
-version: 2.1
+version: 2.2
 
 from pathlib import Path
 from itertools import chain, combinations
@@ -20,8 +20,9 @@ BASE_DIR = config["BASE_DIR"]
 SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
 PROJECT_DIR = SOURCE_DIR + config["PROJECT_DIR"]
 RAW_DATA_DIR = PROJECT_DIR + config["RAW_DATA_DIR"]
-OUT_DIR = PROJECT_DIR + config['OUT_DIR']
-REF_DIR = BASE_DIR + config["REF_DIR"]
+RESULTS_DIR = PROJECT_DIR + config['RESULTS_DIR']
+LOG_DIR = PROJECT_DIR + config['LOG_DIR']
+REF_DIR = config["REF_DIR"]
 SEQUENCES_DIR = REF_DIR + config["SEQUENCES_DIR"]
 GTF = SEQUENCES_DIR + config["GTF"]
 FASTA = SEQUENCES_DIR + config["FASTA"]
@@ -39,11 +40,18 @@ USER = environ.get("USER")
 THREADS = 4
 
 # The list of samples to be processed
-SAMPLES = glob.glob(f'{RAW_DATA_DIR}**/*.fastq.gz', recursive=False)
+SAMPLES = glob.glob(f'{RAW_DATA_DIR}**/*.fastq.gz',
+                    recursive=False)
 #SAMPLES = GS.glob_wildcards(RAW_DATA_DIR + "{samplename}.fastq.gz")
-SAMPLES = [sample.replace(f'{RAW_DATA_DIR}/','').replace('.fastq.gz','') for sample in SAMPLES]
-SAMPLES = [('_').join(sample.split('_')[:-2]) for sample in SAMPLES]
-SAMPLES = [_.split('/')[-1] for _ in SAMPLES]
+SAMPLES = [sample.replace(f'{RAW_DATA_DIR}/','').replace('.fastq.gz','') 
+           for sample
+           in SAMPLES]
+SAMPLES = [('_').join(sample.split('_')[:-2])
+           for sample
+           in SAMPLES]
+SAMPLES = [_.split('/')[-1]
+           for _
+           in SAMPLES]
 
 rule initial_qc:
     """Use Fastqc to examine the quality of the fastqs from the CGC."""
@@ -52,30 +60,32 @@ rule initial_qc:
         R2=RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz'
     params:
         threads=f"--threads {THREADS}",
-        outdir=OUT_DIR+"/qc/initial/{sample}"
+        outdir=RESULTS_DIR+"/qc/initial/{sample}"
     output:
-        html=OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.html',
-        zip=OUT_DIR+'/qc/initial/{sample}/{sample}_fastqc.zip'
+        html=RESULTS_DIR+'/qc/initial/{sample}/{sample}_fastqc.html',
+        zip=RESULTS_DIR+'/qc/initial/{sample}/{sample}_fastqc.zip'
     # singularity:
     #     "docker://milescsmith/fastqc"
     log:
         "logs/fastqc/fastqc_{sample}.log"
+    version: 2.0
     wrapper:
         "0.35.0/bio/fastqc"
-    version: 2.0
 
 rule initial_qc_all:
     """Target rule to run just the inital Fastqc"""
     input:
-        expand(OUT_DIR+"/qc/initial/{sample}/{sample}_fastqc.html", sample=SAMPLES)
+        expand(RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.html", 
+               sample=SAMPLES)
     version: 2.0
 
 rule perfom_trimming:
-    """Use BBmap to trim known adaptors, low quality reads, and polyadenylated sequences and filter out ribosomal reads"""
+    """Use BBmap to trim known adaptors, low quality reads, 
+    and polyadenylated sequences and filter out ribosomal reads"""
     input:
         R1=RAW_DATA_DIR+'/{sample}_R1_001.fastq.gz',
         R2=RAW_DATA_DIR+'/{sample}_R2_001.fastq.gz',
-        wait=OUT_DIR+'/qc/initial/{sample}/{sample}_R1_001_fastqc.zip'
+        wait=RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.html"
     params:
         out_dir='trimmed',
         phred_cutoff=5,
@@ -84,14 +94,15 @@ rule perfom_trimming:
         truseq_adapter_ref=TRUSEQ,
         rRNA_ref=RRNAREF
     output:
-        filteredR1='trimmed/{sample}.R1.fq.gz',
-        filteredR2='trimmed/{sample}.R2.fq.gz',
-        wasteR1='trimmed/removed_{sample}.R1.fq.gz',
-        wasteR2='trimmed/removed_{sample}.R2.fq.gz',
-        contam='logs/contam_{sample}.csv' # to collect metrics on how many ribosomal reads were eliminated
+        filteredR1=RESULTS_DIR+'/trimmed/{sample}.R1.fq.gz',
+        filteredR2=RESULTS_DIR+'/trimmed/{sample}.R2.fq.gz',
+        wasteR1=RESULTS_DIR+'/trimmed/removed_{sample}.R1.fq.gz',
+        wasteR2=RESULTS_DIR+'/trimmed/removed_{sample}.R2.fq.gz',
+        # to collect metrics on how many ribosomal reads were eliminated
+        contam=LOG_DIR+'/trimmed/contam_{sample}.csv'
     #singularity:
     #    "docker://milescsmith/bbmap"
-    version: 2.0
+    version: 2.1
     shell:
         """
         bbduk.sh \
@@ -101,7 +112,10 @@ rule perfom_trimming:
                 out2={output.filteredR2} \
                 outm={output.wasteR1} \
                 outm2={output.wasteR2} \
-                ref={params.polyA_ref},{params.truseq_adapter_ref},{params.truseq_rna_adapter_ref},{params.rRNA_ref} \
+                ref={params.polyA_ref},\
+                    {params.truseq_adapter_ref},\
+                    {params.truseq_rna_adapter_ref},\
+                    {params.rRNA_ref} \
                 stats={output.contam} \
                 statscolumns=3 \
                 k=13 \
@@ -115,53 +129,68 @@ rule perfom_trimming:
 
 rule expand_trimming:
     input:
-        R1=expand('trimmed/{sample}.R1.fq.gz', sample = SAMPLES),
-        R2=expand('trimmed/{sample}.R2.fq.gz', sample = SAMPLES),
-        wasteR1=expand('trimmed/removed_{sample}.R1.fq.gz', sample = SAMPLES),
-        wasteR2=expand('trimmed/removed_{sample}.R2.fq.gz', sample = SAMPLES),
-        contam=expand('logs/contam_{sample}.csv', sample = SAMPLES)
+        R1=expand(RESULTS_DIR+'/trimmed/{sample}.R1.fq.gz',
+                  sample = SAMPLES),
+        R2=expand(RESULTS_DIR+'/trimmed/{sample}.R2.fq.gz',
+                  sample = SAMPLES),
+        wasteR1=expand(RESULTS_DIR+'/trimmed/removed_{sample}.R1.fq.gz',
+                       sample = SAMPLES),
+        wasteR2=expand(RESULTS_DIR+'/trimmed/removed_{sample}.R2.fq.gz',
+                       sample = SAMPLES),
+        contam=expand(LOG_DIR+'/contam_{sample}.csv',
+                      sample = SAMPLES)
 
 rule kallisto:
-    """Psuedoalign sequences using Kallisto. MUCH faster than STAR and I'm not convinced that STAR is any better at the alignment."""
+    """Psuedoalign sequences using Kallisto. MUCH faster than STAR and 
+    I'm not convinced that STAR is any better at the alignment."""
     input:
-        fq1='trimmed/{sample}.R1.fq.gz',
-        fq2='trimmed/{sample}.R2.fq.gz',
+        fq1=RESULTS_DIR+'/trimmed/{sample}.R1.fq.gz',
+        fq2=RESULTS_DIR+'/trimmed/{sample}.R2.fq.gz',
         GTF=GTF
     output:
-        'kallisto/{sample}/abundance.h5',
-        'kallisto/{sample}/abundance.tsv',
-        'kallisto/{sample}/run_info.json'
+        RESULTS_DIR+'/kallisto/{sample}/abundance.h5',
+        RESULTS_DIR+'/kallisto/{sample}/abundance.tsv',
+        RESULTS_DIR+'/kallisto/{sample}/run_info.json'
     params:
         index=KALLISTO_INDEX,
         threads=THREADS,
-        out_dir='kallisto/{sample}/'
+        out_dir=RESULTS_DIR+'/kallisto/{sample}/'
     log:
-        "logs/kallisto/kallisto_{sample}.log"
+        LOG_DIR+"/kallisto/kallisto_{sample}.log"
     #singularity:
     #    "docker://milescsmith/kallisto"
-    version: 1.0
+    version: 1.2
     shell:
-        "kallisto quant -t {params.threads} -o {params.out_dir} -i {params.index} --rf-stranded --bootstrap-samples=12 --gtf {input.GTF} --bias {input.fq1} {input.fq2}"
-
+        """
+        kallisto quant -t {params.threads} \
+            -o {params.out_dir} \
+            -i {params.index} \
+            --rf-stranded \
+            --bootstrap-samples=12 \
+            --gtf {input.GTF} \
+            --bias {input.fq1} {input.fq2}
+        """
 rule kallisto_quant_all:
-    """Target rule to force alignement of all the samples. If aligning with Kallisto, use this as the target run since Kallisto typically does not make the bam files needed below."""
-    input: expand("kallisto/{sample}/abundance.h5", sample=SAMPLES)
+    """Target rule to force alignement of all the samples. If aligning 
+    with Kallisto, use this as the target run since Kallisto typically does 
+    not make the bam files needed below."""
+    input: expand(RESULTS_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES)
 
 rule run_kallisto_multiqc:
     input:
-        expand("kallisto/{sample}/abundance.h5", sample=SAMPLES)
+        expand(RESULTS_DIR+"/kallisto/{sample}/abundance.h5", sample=SAMPLES)
     output:
-        name="multiqc_kallisto_align_report.html"
+        name=RESULTS_DIR+"/multiqc_kallisto_align_report.html"
     params:
         proj_dir=PROJECT_DIR
     log:
         "logs/multiqc.html"
-    version: 1.1
+    version: 1.2
     #singularity:
     #    "docker://ewels/multiqc"
     shell:
         "multiqc --force {params.proj_dir} -n {output}"
 
 rule kallisto_with_qc:
-    input: "multiqc_kallisto_align_report.html"
+    input: RESULTS_DIR+"/multiqc_kallisto_align_report.html"
     version: 1.1
