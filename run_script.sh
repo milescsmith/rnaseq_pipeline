@@ -1,6 +1,5 @@
 #! /usr/bin/env bash
 snakemake \
---cleanup-shadow True \
 --configfile ./config.yaml \
 --cluster-config ./cluster.json \
 --cluster \
