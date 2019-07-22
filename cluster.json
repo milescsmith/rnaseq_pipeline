@@ -7,7 +7,7 @@
         "job-name"     : "JOBNAME.{rule}.{wildcards}",
         "output"       : "logs/cluster/{rule}.{wildcards}.out",
         "error"        : "logs/cluster/{rule}.{wildcards}.err",
-        "mail-user"    : "miles-smith@omrf.org",
+        "mail-user"    : "{USER}@omrf.org",
         "mail-type"    : "ALL",
         "nodes"        : 1,
         "mem-per-cpu"  : 8,

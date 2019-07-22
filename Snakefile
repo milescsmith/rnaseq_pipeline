@@ -9,13 +9,15 @@ version: 2.1
 from pathlib import Path
 from itertools import chain, combinations
 from os.path import join
-from os import getcwd
+from os import getcwd, environ
 import glob
 import re
 
 #configfile: "config.yaml"
 # this is entirely because it does not seem to be possible to concatenate values
 # in either YAML or JSON
+
+USER = environ.get("USER")
 RAW_DATA_DIR = "/s/guth-aci/20190605-cgc-run-archives/raw_data"
 OUT_DIR = "/s/guth-aci/20190605-cgc-run-archives/output"
 
