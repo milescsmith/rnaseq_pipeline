@@ -1,6 +1,5 @@
 #! /usr/bin/env bash
 snakemake \
---cleanup-shadow True \
 --configfile ./config.yaml \
 --cluster-config ./cluster.json \
 --cluster \
@@ -9,8 +8,9 @@ snakemake \
 --mem={cluster.mem} \
 --nodes={cluster.nodes} \
 --export={cluster.path},{cluster.java_opts}"  \
---jobs 20 \
+--jobs 60 \
 --snakefile ./Snakefile \
 --use-conda \
---latency-wait 30 \
---rerun-incomplete kallisto_with_qc
+--latency-wait 60 \
+--rerun-incomplete \
+kallisto_with_qc
