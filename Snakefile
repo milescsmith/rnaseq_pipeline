@@ -39,6 +39,7 @@ USER = environ.get("USER")
 
 THREADS = 4
 
+print(f"Checking for samples in {RAW_DATA_DIR}")
 # The list of samples to be processed
 SAMPLES = glob.glob(f"{RAW_DATA_DIR}**/*.fastq.gz",
                     recursive=False)
@@ -53,11 +54,12 @@ SAMPLES = [_.split("/")[-1]
            for _
            in SAMPLES]
 
+print(f"Found {len(SAMPLES)} samples")
+
 rule initial_qc:
     """Use Fastqc to examine the quality of the fastqs from the CGC."""
     input:
         R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
-        R2=RAW_DATA_DIR+"/{sample}_R2_001.fastq.gz"
     params:
         threads=f"--threads {THREADS}",
         #outdir=RESULTS_DIR+"/qc/initial/{sample}"
@@ -83,7 +85,6 @@ rule perfom_trimming:
     and polyadenylated sequences and filter out ribosomal reads"""
     input:
         R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
-        R2=RAW_DATA_DIR+"/{sample}_R2_001.fastq.gz",
         wait=RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.html"
     params:
         out_dir="trimmed",
@@ -94,9 +95,7 @@ rule perfom_trimming:
         rRNA_ref=RRNAREF
     output:
         filteredR1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        filteredR2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
         wasteR1=RESULTS_DIR+"/trimmed/removed_{sample}.R1.fq.gz",
-        wasteR2=RESULTS_DIR+"/trimmed/removed_{sample}.R2.fq.gz",
         # to collect metrics on how many ribosomal reads were eliminated
         contam=LOG_DIR+"/trimmed/contam_{sample}.csv"
     #singularity:
@@ -106,11 +105,8 @@ rule perfom_trimming:
         """
         bbduk.sh \
                 in={input.R1} \
-                in2={input.R2} \
                 outu={output.filteredR1} \
-                out2={output.filteredR2} \
                 outm={output.wasteR1} \
-                outm2={output.wasteR2} \
                 ref={params.polyA_ref},{params.truseq_adapter_ref},{params.truseq_rna_adapter_ref},{params.rRNA_ref} \
                 stats={output.contam} \
                 statscolumns=3 \
@@ -127,13 +123,9 @@ rule expand_trimming:
     input:
         R1=expand(RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
                   sample = SAMPLES),
-        R2=expand(RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
-                  sample = SAMPLES),
         wasteR1=expand(RESULTS_DIR+"/trimmed/removed_{sample}.R1.fq.gz",
                        sample = SAMPLES),
-        wasteR2=expand(RESULTS_DIR+"/trimmed/removed_{sample}.R2.fq.gz",
-                       sample = SAMPLES),
-        contam=expand(LOG_DIR+"/contam_{sample}.csv",
+        contam=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
                       sample = SAMPLES)
 
 rule kallisto:
@@ -141,7 +133,6 @@ rule kallisto:
     I"m not convinced that STAR is any better at the alignment."""
     input:
         fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        fq2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
         GTF=GTF
     output:
         RESULTS_DIR+"/kallisto/{sample}/abundance.h5",
@@ -158,19 +149,22 @@ rule kallisto:
     version: 1.2
     shell:
         """
-        kallisto quant -t {params.threads} \
-            -o {params.out_dir} \
-            -i {params.index} \
-            --rf-stranded \
+        kallisto quant \
+            --threads={params.threads} \
+            --output-dir={params.out_dir} \
+            --index={params.index} \
+            --single \
+            --fragment-length=76 \
+            --sd=5 \
             --bootstrap-samples=12 \
             --gtf {input.GTF} \
-            --bias {input.fq1} {input.fq2}
+            --bias {input.fq1}
         """
 rule kallisto_quant_all:
     """Target rule to force alignement of all the samples. If aligning 
     with Kallisto, use this as the target run since Kallisto typically does 
     not make the bam files needed below."""
-    input: expand(RESULTS_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES)
+    input: expand(RESULTS_DIR+"/kallisto/{sample}/abundance.h5", sample=SAMPLES)
 
 rule run_kallisto_multiqc:
     input:
@@ -189,5 +183,5 @@ rule run_kallisto_multiqc:
         "multiqc --force {params.proj_dir} -n {output} {input.kallisto_results} {input.log_files}"
 
 rule kallisto_with_qc:
-    input: RESULTS_DIR+"/multiqc_kallisto_align_report.html"
+    input: LOG_DIR+"/multiqc_kallisto_align_report.html"
     version: 1.1
