@@ -128,50 +128,114 @@ rule expand_trimming:
         contam=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
                       sample = SAMPLES)
 
-rule kallisto:
-    """Psuedoalign sequences using Kallisto. MUCH faster than STAR and 
-    I"m not convinced that STAR is any better at the alignment."""
+rule star_align:
     input:
         fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        GTF=GTF
+        annotation=GTF
     output:
-        RESULTS_DIR+"/kallisto/{sample}/abundance.h5",
-        RESULTS_DIR+"/kallisto/{sample}/abundance.tsv",
-        RESULTS_DIR+"/kallisto/{sample}/run_info.json"
-    params:
-        index=KALLISTO_INDEX,
-        threads=THREADS,
-        out_dir=RESULTS_DIR+"/kallisto/{sample}/"
+        # see STAR manual for additional output files
+        RESULTS_DIR+"/star/{sample}/Aligned.out.bam"
+        # "star/{sample}/Log.final.out"
+        # "star/{sample}/ReadsPerGene.out.tab"
     log:
-        LOG_DIR+"/kallisto/kallisto_{sample}.log"
-    #singularity:
-    #    "docker://milescsmith/kallisto"
-    version: 1.2
-    shell:
-        """
-        kallisto quant \
-            --threads={params.threads} \
-            --output-dir={params.out_dir} \
-            --index={params.index} \
-            --single \
-            --fragment-length=76 \
-            --sd=5 \
-            --bootstrap-samples=12 \
-            --gtf {input.GTF} \
-            --bias {input.fq1}
-        """
-rule kallisto_quant_all:
-    """Target rule to force alignement of all the samples. If aligning 
-    with Kallisto, use this as the target run since Kallisto typically does 
-    not make the bam files needed below."""
-    input: expand(RESULTS_DIR+"/kallisto/{sample}/abundance.h5", sample=SAMPLES)
+        LOG_DIR+"/star/{sample}/Log.final.out"
+    params:
+        # path to STAR reference genome index
+        index=STAR_INDEX
+    threads: 8
+    wrapper:
+        "0.31.0/bio/star/align"
 
-rule run_kallisto_multiqc:
+# rule star_se:
+#     input:
+#         fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
+#         annotation=GTF
+#     output:
+#         RESULTS_DIR+"/star/{sample}/Aligned.out.bam",
+#         # "star/{sample}/Log.final.out",
+#         # "star/{sample}/ReadsPerGene.out.tab"
+#     log:
+#         LOG_DIR+"/star/{sample}.log"
+#     params:
+#         threads=THREADS,
+#         # path to STAR reference genome index
+#         index=STAR_INDEX,
+#         outdir=RESULTS_DIR+"/star/{sample}"
+#         # optional parameters
+#     shell:
+#         """
+#         STAR \
+#             --runThreadN {params.threads} \
+#             --genomeDir {params.index} \
+#             --readFilesIn {input.fq1} \
+#             --outSAMtype BAM SortedByCoordinate \
+#             --quantMode GeneCounts \
+#             --alignIntronMax 1000000 \
+#             --alignMatesGapMax 1000000 \
+#             --outFilterMismatchNoverLmax 0.6 \
+#             --alignIntronMin 20 \
+#             --alignSJDBoverhangMin 1 \
+#             --outFilterMismatchNmax 999 \
+#             --outFilterType BySJout \
+#             --alignSJoverhangMin 8 \
+#             --outSAMattrIHstart 0 \
+#             --outSAMattributes NH HI AS nM XS NM MD \
+#             --outReadsUnmapped Fastx \
+#             --outFileNamePrefix {params.outdir}/
+#         """
+
+rule align_all:
     input:
-        kallisto_results = expand(RESULTS_DIR+"/kallisto/{sample}/abundance.h5", sample=SAMPLES),
+        expand(RESULTS_DIR+"/star/{sample}/Aligned.out.bam", sample=SAMPLES)
+
+rule sort:
+    input: 
+        RESULTS_DIR+"/star/{sample}/Aligned.out.bam"
+    output: 
+        RESULTS_DIR+"/sorted/{sample}.sorted.bam"
+    params:
+        ""
+    threads: THREADS
+    wrapper:
+        "0.36.0/bio/samtools/sort"
+
+rule stringtie_quant:
+    input:
+        # merged_gtf="stringtie/merged.gtf",
+        genome_gtf=GTF,
+        sample_bam=RESULTS_DIR+"/sorted/{sample}.sorted.bam"
+    output:
+        gtf=RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf",
+        ctabs=expand(
+            RESULTS_DIR+"/stringtie/{{sample}}/{name}.ctab",
+            name=["i2t", "e2t", "i_data", "e_data", "t_data"]
+        )
+    threads: THREADS
+    shell:
+        "stringtie -e -B -p {threads} -G {input.genome_gtf} -o {output.gtf} {input.sample_bam}"
+
+rule stringtie_all_samples:
+    input: expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf", sample=SAMPLES)
+
+rule generate_count_matrices:
+    input: expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf", sample=SAMPLES)
+    output: 
+        gcm=RESULTS_DIR+"/gene_count_matrix.csv",
+        tcm=RESULTS_DIR+"/transcript_count_matrix.csv"
+    params: 
+        inputdir = RESULTS_DIR+"/stringtie"
+    shell:
+        "prepDE.py -i {params.inputdir} -g {output.gcm} -t {output.tcm}"
+
+rule quant_all_samples:
+    input: RESULTS_DIR+"/transcript_count_matrix.csv"
+
+rule run_post_star_multiqc:
+    input:
+        stringtie_results = RESULTS_DIR+"/transcript_count_matrix.csv",
         log_files = LOG_DIR
     output:
-        name=LOG_DIR+"/multiqc_kallisto_align_report.html"
+        name=LOG_DIR+"/multiqc_star_align_report.html"
     params:
         proj_dir=PROJECT_DIR
     log:
@@ -180,8 +244,8 @@ rule run_kallisto_multiqc:
     #singularity:
     #    "docker://ewels/multiqc"
     shell:
-        "multiqc --force {params.proj_dir} -n {output} {input.kallisto_results} {input.log_files}"
+        "multiqc --force {params.proj_dir} -n {output} {input.stringtie_results} {input.log_files}"
 
-rule kallisto_with_qc:
-    input: LOG_DIR+"/multiqc_kallisto_align_report.html"
+rule star_with_qc:
+    input: LOG_DIR+"/multiqc_star_align_report.html"
     version: 1.1
