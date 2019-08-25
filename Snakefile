@@ -194,7 +194,7 @@ rule salmon_quant:
     input:
         fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
     output:
-        RESULTS_DIR+"/salmon/{sample}"
+        RESULTS_DIR+"/salmon/{sample}/quant.sf"
     params:
         index=SALMON_INDEX,
         threads=THREADS,
@@ -214,14 +214,14 @@ rule salmon_quant:
             --fldMean 76 \
             --fldSD 5 \
             -r {input.fq1} \
-            -o {output} \
+            -o {params.out_dir} \
         """
 
 rule salmon_quant_all:
     """Target rule to force alignement of all the samples. If aligning 
     with Salmon, use this as the target run since Salmon typically does 
     not make the bam files needed below."""
-    input: expand(RESULTS_DIR+"salmon/{sample}/quant.sf", sample=SAMPLES)
+    input: expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES)
 
 rule run_salmon_multiqc:
     input:
