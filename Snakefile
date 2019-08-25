@@ -28,6 +28,7 @@ GTF = SEQUENCES_DIR + config["GTF"]
 FASTA = SEQUENCES_DIR + config["FASTA"]
 STAR_INDEX = SEQUENCES_DIR + config["STAR_INDEX"]
 KALLISTO_INDEX = SEQUENCES_DIR + config["KALLISTO_INDEX"]
+SALMON_INDEX = SEQUENCES_DIR + config["SALMON_INDEX"]
 RESOURCE_DIR = REF_DIR + config["RESOURCE_DIR"]
 GENOME_BUILD = config["GENOME_BUILD"]
 POLY_A = RESOURCE_DIR + config["POLY_A"]
@@ -190,4 +191,59 @@ rule run_kallisto_multiqc:
 
 rule kallisto_with_qc:
     input: RESULTS_DIR+"/multiqc_kallisto_align_report.html"
+    version: 1.1
+
+rule salmon_quant:
+    """Psuedoalign sequences using Salmon. MUCH faster than STAR and 
+    I"m not convinced that STAR is any better at the alignment."""
+    input:
+        fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
+        fq2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
+    output:
+        RESULTS_DIR+"/salmon/{sample}/quant.sf"
+    params:
+        index=SALMON_INDEX,
+        threads=THREADS,
+        out_dir=RESULTS_DIR+"/salmon/{sample}/"
+    log:
+        LOG_DIR+"/salmon/salmon_{sample}.log"
+    version: 1.0
+    shell:
+        """
+        salmon quant \
+            -l A \
+            -p {params.threads} \
+            -i {params.index} \
+            --seqBias \
+            --gcBias \
+            --validateMappings \
+            -1 {input.fq1} \
+            -2 {input.fq2} \
+            -o {params.out_dir} \
+        """
+
+rule salmon_quant_all:
+    """Target rule to force alignement of all the samples. If aligning 
+    with Salmon, use this as the target run since Salmon typically does 
+    not make the bam files needed below."""
+    input: expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES)
+
+rule run_salmon_multiqc:
+    input:
+        alignment_results = expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES),
+        log_files = LOG_DIR
+    output:
+        name=LOG_DIR+"/multiqc_salmon_align_report.html"
+    params:
+        proj_dir=PROJECT_DIR
+    log:
+        LOG_DIR+"/multiqc.html"
+    version: 1.2
+    #singularity:
+    #    "docker://ewels/multiqc"
+    shell:
+        "multiqc --force {params.proj_dir} -n {output} {input.alignment_results} {input.log_files}"
+
+rule salmon_with_qc:
+    input: RESULTS_DIR+"/multiqc_salmon_align_report.html"
     version: 1.1

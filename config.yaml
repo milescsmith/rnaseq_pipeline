@@ -24,6 +24,8 @@ STAR_INDEX:
   /homo_sapiens/indices/star/gencode_v28_with_virus
 KALLISTO_INDEX:
   /homo_sapiens/indices/kallisto/gencode_v29_transcripts.idx
+SALMON_INDEX:
+  /homo_sapiens/indices/salmon_gencode_v31
 RESOURCE_DIR:
   /miscellaneous
 POLY_A:
