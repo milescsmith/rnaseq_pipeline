@@ -17,8 +17,8 @@ import re
 # this is entirely because it does not seem to be possible to concatenate values
 # in either YAML or JSON
 BASE_DIR = config["BASE_DIR"]
-SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
-PROJECT_DIR = SOURCE_DIR + config["PROJECT_DIR"]
+#SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
+PROJECT_DIR = BASE_DIR + config["PROJECT_DIR"]
 RAW_DATA_DIR = PROJECT_DIR + config["RAW_DATA_DIR"]
 RESULTS_DIR = PROJECT_DIR + config["RESULTS_DIR"]
 LOG_DIR = PROJECT_DIR + config["LOG_DIR"]
@@ -42,7 +42,7 @@ THREADS = 4
 
 # The list of samples to be processed
 SAMPLES = glob.glob(f"{RAW_DATA_DIR}**/*.fastq.gz",
-                    recursive=False)
+                    recursive=True)
 #SAMPLES = GS.glob_wildcards(RAW_DATA_DIR + "{samplename}.fastq.gz")
 SAMPLES = [sample.replace(f"{RAW_DATA_DIR}/","").replace(".fastq.gz","") 
            for sample
@@ -54,6 +54,8 @@ SAMPLES = [_.split("/")[-1]
            for _
            in SAMPLES]
 
+# print(RAW_DATA_DIR)
+# print(SAMPLES[0])
 rule initial_qc:
     """Use Fastqc to examine the quality of the fastqs from the CGC."""
     input:
@@ -178,24 +180,24 @@ rule run_kallisto_multiqc:
         kallisto_results = expand(RESULTS_DIR+"/kallisto/{sample}/abundance.h5", sample=SAMPLES),
         log_files = LOG_DIR
     output:
-        name=LOG_DIR+"/multiqc_kallisto_align_report.html"
+        LOG_DIR+"/multiqc_kallisto_align_report.html"
     params:
-        proj_dir=PROJECT_DIR
-    log:
-        LOG_DIR+"/multiqc.html"
-    version: 1.2
-    #singularity:
-    #    "docker://ewels/multiqc"
-    shell:
-        "multiqc --force {params.proj_dir} -n {output} {input.kallisto_results} {input.log_files}"
+        "-m fastqc",
+        "-m bbmap",
+        "-m kallisto",
+        "-ip"
+    wrapper:
+        "0.36.0/bio/multiqc"
 
 rule kallisto_with_qc:
-    input: RESULTS_DIR+"/multiqc_kallisto_align_report.html"
-    version: 1.1
+    input: LOG_DIR+"/multiqc_kallisto_align_report.html"
+    version: 1.2
 
 rule salmon_quant:
     """Psuedoalign sequences using Salmon. MUCH faster than STAR and 
-    I"m not convinced that STAR is any better at the alignment."""
+    I"m not convinced that STAR is any better at the alignment.
+    Also, Salmon results are easier to translate into gene-level counts than 
+    Kallisto."""
     input:
         fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
         fq2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
@@ -217,8 +219,8 @@ rule salmon_quant:
             --seqBias \
             --gcBias \
             --validateMappings \
-            -1 {input.fq1} \
-            -2 {input.fq2} \
+            -1 <(gunzip -c {input.fq1}) \
+            -2 <(gunzip -c {input.fq2}) \
             -o {params.out_dir} \
         """
 
@@ -233,17 +235,30 @@ rule run_salmon_multiqc:
         alignment_results = expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES),
         log_files = LOG_DIR
     output:
-        name=LOG_DIR+"/multiqc_salmon_align_report.html"
+        LOG_DIR+"/multiqc_salmon_align_report.html"
     params:
-        proj_dir=PROJECT_DIR
-    log:
-        LOG_DIR+"/multiqc.html"
-    version: 1.2
-    #singularity:
-    #    "docker://ewels/multiqc"
-    shell:
-        "multiqc --force {params.proj_dir} -n {output} {input.alignment_results} {input.log_files}"
+        "-m fastqc",
+        "-m bbmap",
+        "-m salmon",
+        "-ip"
+    wrapper:
+        "0.36.0/bio/multiqc"
 
 rule salmon_with_qc:
-    input: RESULTS_DIR+"/multiqc_salmon_align_report.html"
+    input: LOG_DIR+"/multiqc_salmon_align_report.html"
     version: 1.1
+
+rule compress_salmon_results:
+    input: RESULTS_DIR+"/salmon/{sample}/quant.sf"
+    output: RESULTS_DIR+"/salmon/{sample}/quant.sf.gz"
+    params:
+        threads=THREADS
+    shell:
+        """
+        pigz -v -p {params.threads} {input}
+        """
+
+rule can_fish:
+    input: 
+        results = expand(RESULTS_DIR+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES),
+        report = LOG_DIR+"/multiqc_salmon_align_report.html"

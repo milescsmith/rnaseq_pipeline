@@ -1,11 +1,11 @@
 BASE_DIR:
   /s/guth-aci
 SOURCE_DIR:
-  /s4
+  
 PROJECT_DIR:
-  /s45
+  /S4.1
 RAW_DATA_DIR:
-  /data/raw_data/fastqs/s45
+  /data/raw_data/fastqs
 RESULTS_DIR:
   /data/results
 LOG_DIR:
@@ -17,13 +17,13 @@ SEQUENCES_DIR:
 SPECIES:
   /homo_sapiens
 GTF:
-  /homo_sapiens/sequences/gencode.v29.annotation.gtf
+  /homo_sapiens/sequences/gencode.v31.annotation.gtf
 FASTA:
   /homo_sapiens/sequences/GRCh38.primary_assembly.genome.fa.gz
 STAR_INDEX:
   /homo_sapiens/indices/star/gencode_v28_with_virus
 KALLISTO_INDEX:
-  /homo_sapiens/indices/kallisto/gencode_v29_transcripts.idx
+  /homo_sapiens/indices/kallisto/gencode_v31_transcripts.idx
 SALMON_INDEX:
   /homo_sapiens/indices/salmon_gencode_v31
 RESOURCE_DIR:
