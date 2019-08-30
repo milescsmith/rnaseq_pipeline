@@ -232,8 +232,7 @@ rule salmon_quant_all:
 
 rule run_salmon_multiqc:
     input:
-        alignment_results = expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES),
-        log_files = LOG_DIR
+        alignment_results = expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES)
     output:
         LOG_DIR+"/multiqc_salmon_align_report.html"
     params:
