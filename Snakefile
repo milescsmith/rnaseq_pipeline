@@ -71,8 +71,9 @@ rule initial_qc:
     #     "docker://milescsmith/fastqc"
     log:
         LOG_DIR+"/fastqc/fastqc_{sample}.log"
+    version: 1.2
     wrapper:
-        "0.35.2/bio/fastqc"
+        "0.36.0/bio/fastqc"
 
 rule initial_qc_all:
     """Target rule to run just the inital Fastqc"""
@@ -229,6 +230,7 @@ rule salmon_quant_all:
     with Salmon, use this as the target run since Salmon typically does 
     not make the bam files needed below."""
     input: expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES)
+    version: 1.0
 
 rule run_salmon_multiqc:
     input:
@@ -252,6 +254,7 @@ rule compress_salmon_results:
     output: RESULTS_DIR+"/salmon/{sample}/quant.sf.gz"
     params:
         threads=THREADS
+    version: 1.0
     shell:
         """
         pigz -v -p {params.threads} {input}
