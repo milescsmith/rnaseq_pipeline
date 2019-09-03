@@ -17,8 +17,8 @@ import re
 # this is entirely because it does not seem to be possible to concatenate values
 # in either YAML or JSON
 BASE_DIR = config["BASE_DIR"]
-#SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
-PROJECT_DIR = BASE_DIR + config["PROJECT_DIR"]
+SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
+PROJECT_DIR = SOURCE_DIR + config["PROJECT_DIR"]
 RAW_DATA_DIR = PROJECT_DIR + config["RAW_DATA_DIR"]
 RESULTS_DIR = PROJECT_DIR + config["RESULTS_DIR"]
 LOG_DIR = PROJECT_DIR + config["LOG_DIR"]
@@ -54,8 +54,8 @@ SAMPLES = [_.split("/")[-1]
            for _
            in SAMPLES]
 
-# print(RAW_DATA_DIR)
-# print(SAMPLES[0])
+print(RAW_DATA_DIR)
+print(SAMPLES[0])
 rule initial_qc:
     """Use Fastqc to examine the quality of the fastqs from the CGC."""
     input:
@@ -237,12 +237,23 @@ rule run_salmon_multiqc:
     output:
         LOG_DIR+"/multiqc_salmon_align_report.html"
     params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m salmon",
-        "-ip"
-    wrapper:
-        "0.36.0/bio/multiqc"
+        logs=LOG_DIR,
+        raw=RAW_DATA_DIR,
+        results=RESULTS_DIR
+    singularity:
+        "docker://ewels/multiqc"
+    shell:
+        """
+        multiqc \
+            {params.logs} {params.raw} {params.results} \
+            -m bcl2fastq \
+            -m fastqc \
+            -m bbmap \
+            -m salmon \
+            -f \
+            -ip \
+            -n {output}
+        """
 
 rule salmon_with_qc:
     input: LOG_DIR+"/multiqc_salmon_align_report.html"

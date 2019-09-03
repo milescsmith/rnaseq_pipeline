@@ -1,7 +1,7 @@
 BASE_DIR:
   /s/guth-aci
 SOURCE_DIR:
-  
+  /novaseq
 PROJECT_DIR:
   /S4.1
 RAW_DATA_DIR:

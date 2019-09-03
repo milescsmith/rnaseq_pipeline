@@ -11,6 +11,7 @@ snakemake \
 --jobs 60 \
 --snakefile ./pipeline/Snakefile \
 --use-conda \
+--use-singularity \
 --latency-wait 60 \
 --rerun-incomplete \
-kallisto_with_qc
+can_fish
