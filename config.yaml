@@ -17,7 +17,7 @@ SEQUENCES_DIR:
 SPECIES:
   /homo_sapiens
 GTF:
-  /homo_sapiens/sequences/gencode.v29.annotation.gtf
+  /homo_sapiens/sequences/gencode.v31.annotation.gtf.gz
 FASTA:
   /homo_sapiens/sequences/GRCh38.primary_assembly.genome.fa.gz
 STAR_INDEX:

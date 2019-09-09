@@ -13,4 +13,4 @@ snakemake \
 --use-conda \
 --latency-wait 60 \
 --rerun-incomplete \
-kallisto_with_qc
+salmon_quant_all
