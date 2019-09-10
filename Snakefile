@@ -54,8 +54,8 @@ SAMPLES = [_.split("/")[-1]
            for _
            in SAMPLES]
 
-print(RAW_DATA_DIR)
-print(SAMPLES[0])
+# print(RAW_DATA_DIR)
+# print(SAMPLES[0])
 rule initial_qc:
     """Use Fastqc to examine the quality of the fastqs from the CGC."""
     input:
@@ -188,7 +188,7 @@ rule run_kallisto_multiqc:
         "-m kallisto",
         "-ip"
     wrapper:
-        "0.36.0/bio/multiqc"
+        "0.38.0/bio/multiqc"
 
 rule kallisto_with_qc:
     input: LOG_DIR+"/multiqc_kallisto_align_report.html"
@@ -238,23 +238,12 @@ rule run_salmon_multiqc:
     output:
         LOG_DIR+"/multiqc_salmon_align_report.html"
     params:
-        logs=LOG_DIR,
-        raw=RAW_DATA_DIR,
-        results=RESULTS_DIR
-    singularity:
-        "docker://ewels/multiqc"
-    shell:
-        """
-        multiqc \
-            {params.logs} {params.raw} {params.results} \
-            -m bcl2fastq \
-            -m fastqc \
-            -m bbmap \
-            -m salmon \
-            -f \
-            -ip \
-            -n {output}
-        """
+        "-m fastqc",
+        "-m bbmap",
+        "-m salmon",
+        "-ip"
+    wrapper:
+        "0.38.0/bio/multiqc"
 
 rule salmon_with_qc:
     input: LOG_DIR+"/multiqc_salmon_align_report.html"
