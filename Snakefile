@@ -250,17 +250,17 @@ rule salmon_with_qc:
     version: 1.1
 
 rule compress_salmon_results:
-    input: RESULTS_DIR+"/salmon/{sample}/quant.sf"
+    input:
+        quant=RESULTS_DIR+"/salmon/{sample}/quant.sf",
+        summarized_qc=LOG_DIR+"/multiqc_salmon_align_report.html"
     output: RESULTS_DIR+"/salmon/{sample}/quant.sf.gz"
     params:
         threads=THREADS
     version: 1.0
     shell:
         """
-        pigz -v -p {params.threads} {input}
+        pigz -v -p {params.threads} {input.quant}
         """
 
 rule can_fish:
-    input: 
-        results = expand(RESULTS_DIR+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES),
-        report = LOG_DIR+"/multiqc_salmon_align_report.html"
+    input: expand(RESULTS_DIR+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES)
