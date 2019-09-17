@@ -72,7 +72,7 @@ rule initial_qc:
     log:
         LOG_DIR+"/fastqc/fastqc_{sample}.log"
     wrapper:
-        "0.35.2/bio/fastqc"
+        "0.38.0/bio/fastqc"
 
 rule initial_qc_all:
     """Target rule to run just the inital Fastqc"""
@@ -225,20 +225,33 @@ rule salmon_quant_all:
 
 rule run_salmon_multiqc:
     input:
-        alignment_results = expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES),
-        log_files = LOG_DIR
+        alignment_results = expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES)
     output:
-        name=LOG_DIR+"/multiqc_salmon_align_report.html"
+        LOG_DIR+"/multiqc_salmon_align_report.html"
     params:
-        proj_dir=PROJECT_DIR
-    log:
-        LOG_DIR+"/multiqc.html"
-    version: 1.2
-    #singularity:
-    #    "docker://ewels/multiqc"
-    shell:
-        "multiqc --force {params.proj_dir} -n {output} {input.alignment_results} {input.log_files}"
+        "-m fastqc",
+        "-m bbmap",
+        "-m salmon",
+        "-ip"
+    wrapper:
+        "0.38.0/bio/multiqc"
 
 rule salmon_with_qc:
-    input: RESULTS_DIR+"/multiqc_salmon_align_report.html"
+    input: LOG_DIR+"/multiqc_salmon_align_report.html"
     version: 1.1
+
+rule compress_salmon_results:
+    input:
+        quant=RESULTS_DIR+"/salmon/{sample}/quant.sf",
+        summarized_qc=LOG_DIR+"/multiqc_salmon_align_report.html"
+    output: RESULTS_DIR+"/salmon/{sample}/quant.sf.gz"
+    params:
+        threads=THREADS
+    version: 1.0
+    shell:
+        """
+        pigz -v -p {params.threads} {input.quant}
+        """
+
+rule can_fish:
+    input: expand(RESULTS_DIR+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES)

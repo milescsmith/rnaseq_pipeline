@@ -25,7 +25,7 @@ STAR_INDEX:
 KALLISTO_INDEX:
   /homo_sapiens/indices/kallisto/gencode_v29_transcripts.idx
 SALMON_INDEX:
-  /homo_sapiens/indices/salmon_gencode_v31
+  /chimeras/indices/salmon/gencode_v31_with_viruses
 RESOURCE_DIR:
   /miscellaneous
 POLY_A:
