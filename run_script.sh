@@ -8,9 +8,9 @@ snakemake \
 --mem={cluster.mem} \
 --nodes={cluster.nodes} \
 --export={cluster.path},{cluster.java_opts}"  \
---jobs 60 \
+--jobs 30 \
 --snakefile ./pipeline/Snakefile \
 --use-conda \
 --latency-wait 60 \
 --rerun-incomplete \
-salmon_quant_all
+can_fish

@@ -63,10 +63,10 @@ rule initial_qc:
         R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
     params:
         threads=f"--threads {THREADS}",
-        #outdir=RESULTS_DIR+"/qc/initial/{sample}"
+        #outdir=RESULTS_DIR+"/qc/{sample}"
     output:
-        html=RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.html",
-        zip=RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.zip"
+        html=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
+        zip=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.zip"
     # singularity:
     #     "docker://milescsmith/fastqc"
     log:
@@ -77,7 +77,7 @@ rule initial_qc:
 rule initial_qc_all:
     """Target rule to run just the inital Fastqc"""
     input:
-        expand(RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.html", 
+        expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html", 
                sample=SAMPLES)
     version: 2.0
 
@@ -86,7 +86,7 @@ rule perfom_trimming:
     and polyadenylated sequences and filter out ribosomal reads"""
     input:
         R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
-        wait=RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.html"
+        wait=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html"
     params:
         out_dir="trimmed",
         phred_cutoff=5,
