@@ -8,9 +8,9 @@ snakemake \
 --mem={cluster.mem} \
 --nodes={cluster.nodes} \
 --export={cluster.path},{cluster.java_opts}"  \
---jobs 20 \
+--jobs 5 \
 --snakefile ./pipeline/Snakefile \
 --use-conda \
 --latency-wait 60 \
 --rerun-incomplete \
-star_with_qc
+quant_all_samples

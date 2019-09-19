@@ -62,10 +62,10 @@ rule initial_qc:
         R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
     params:
         threads=f"--threads {THREADS}",
-        #outdir=RESULTS_DIR+"/qc/initial/{sample}"
+        #outdir=RESULTS_DIR+"/qc/{sample}"
     output:
-        html=RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.html",
-        zip=RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.zip"
+        html=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
+        zip=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.zip"
     # singularity:
     #     "docker://milescsmith/fastqc"
     log:
@@ -76,7 +76,7 @@ rule initial_qc:
 rule initial_qc_all:
     """Target rule to run just the inital Fastqc"""
     input:
-        expand(RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.html", 
+        expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html", 
                sample=SAMPLES)
     version: 2.0
 
@@ -85,7 +85,7 @@ rule perfom_trimming:
     and polyadenylated sequences and filter out ribosomal reads"""
     input:
         R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
-        wait=RESULTS_DIR+"/qc/initial/{sample}/{sample}_fastqc.html"
+        wait=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html"
     params:
         out_dir="trimmed",
         phred_cutoff=5,
@@ -128,61 +128,61 @@ rule expand_trimming:
         contam=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
                       sample = SAMPLES)
 
-rule star_align:
-    input:
-        fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        annotation=GTF
-    output:
-        # see STAR manual for additional output files
-        RESULTS_DIR+"/star/{sample}/Aligned.out.bam"
-        # "star/{sample}/Log.final.out"
-        # "star/{sample}/ReadsPerGene.out.tab"
-    log:
-        LOG_DIR+"/star/{sample}/Log.final.out"
-    params:
-        # path to STAR reference genome index
-        index=STAR_INDEX
-    threads: 8
-    wrapper:
-        "0.31.0/bio/star/align"
-
-# rule star_se:
+# rule star_align:
 #     input:
 #         fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
 #         annotation=GTF
 #     output:
-#         RESULTS_DIR+"/star/{sample}/Aligned.out.bam",
-#         # "star/{sample}/Log.final.out",
+#         # see STAR manual for additional output files
+#         RESULTS_DIR+"/star/{sample}/Aligned.out.bam"
+#         # "star/{sample}/Log.final.out"
 #         # "star/{sample}/ReadsPerGene.out.tab"
 #     log:
-#         LOG_DIR+"/star/{sample}.log"
+#         LOG_DIR+"/star/{sample}/Log.final.out"
 #     params:
-#         threads=THREADS,
 #         # path to STAR reference genome index
-#         index=STAR_INDEX,
-#         outdir=RESULTS_DIR+"/star/{sample}"
-#         # optional parameters
-#     shell:
-#         """
-#         STAR \
-#             --runThreadN {params.threads} \
-#             --genomeDir {params.index} \
-#             --readFilesIn {input.fq1} \
-#             --outSAMtype BAM SortedByCoordinate \
-#             --quantMode GeneCounts \
-#             --alignIntronMax 1000000 \
-#             --alignMatesGapMax 1000000 \
-#             --outFilterMismatchNoverLmax 0.6 \
-#             --alignIntronMin 20 \
-#             --alignSJDBoverhangMin 1 \
-#             --outFilterMismatchNmax 999 \
-#             --outFilterType BySJout \
-#             --alignSJoverhangMin 8 \
-#             --outSAMattrIHstart 0 \
-#             --outSAMattributes NH HI AS nM XS NM MD \
-#             --outReadsUnmapped Fastx \
-#             --outFileNamePrefix {params.outdir}/
-#         """
+#         index=STAR_INDEX
+#     threads: 8
+#     wrapper:
+#         "0.38.0/bio/star/align"
+
+rule star_se:
+    input:
+        RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz"
+    output:
+        RESULTS_DIR+"/star/{sample}/Aligned.out.bam"
+        # "star/{sample}/Log.final.out",
+        # "star/{sample}/ReadsPerGene.out.tab"
+    log:
+        LOG_DIR+"/star/{sample}.log"
+    params:
+        threads=THREADS,
+        # path to STAR reference genome index
+        index=STAR_INDEX,
+        outdir=RESULTS_DIR+"/star/{sample}"
+        # optional parameters
+    shell:
+        """
+        STAR \
+            --runThreadN {params.threads} \
+            --genomeDir {params.index} \
+            --readFilesIn {input} \
+            --outSAMtype BAM SortedByCoordinate \
+            --quantMode GeneCounts \
+            --alignIntronMax 1000000 \
+            --alignMatesGapMax 1000000 \
+            --outFilterMismatchNoverLmax 0.6 \
+            --alignIntronMin 20 \
+            --alignSJDBoverhangMin 1 \
+            --outFilterMismatchNmax 999 \
+            --outFilterType BySJout \
+            --alignSJoverhangMin 8 \
+            --outSAMattrIHstart 0 \
+            --outSAMattributes NH HI AS nM XS NM MD \
+            --outReadsUnmapped Fastx \
+            --readFilesCommand gunzip -c \
+            --outFileNamePrefix {params.outdir}/
+        """
 
 rule align_all:
     input:

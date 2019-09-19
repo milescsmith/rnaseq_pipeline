@@ -13,6 +13,5 @@
         "mem-per-cpu"  : 8,
         "path"         : "PATH",
         "java_opts"    : "_JAVA_OPTIONS='-Xmx90G -Xms4G -XX:+UseParallelGC -XX:ParallelGCThreads=8'"
-    },
-
+    }
 }

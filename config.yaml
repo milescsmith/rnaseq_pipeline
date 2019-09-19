@@ -17,11 +17,11 @@ SEQUENCES_DIR:
 SPECIES:
   /homo_sapiens
 GTF:
-  /homo_sapiens/sequences/gencode.v29.annotation.gtf
+  /homo_sapiens/sequences/Homo_sapiens.GRCh38.97.gtf
 FASTA:
   /homo_sapiens/sequences/GRCh38.primary_assembly.genome.fa.gz
 STAR_INDEX:
-  /homo_sapiens/indices/star/gencode_v28
+  /homo_sapiens/indices/star/ensembl_GRCh38_97
 KALLISTO_INDEX:
   /homo_sapiens/indices/kallisto/gencode_v29_transcripts.idx
 RESOURCE_DIR:
