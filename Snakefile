@@ -37,7 +37,7 @@ RRNAREF = RESOURCE_DIR + config["RRNAREF"]
 
 USER = environ.get("USER")
 
-THREADS = 4
+THREADS = 8
 
 print(f"Checking for samples in {RAW_DATA_DIR}")
 # The list of samples to be processed
@@ -150,7 +150,7 @@ rule star_se:
     input:
         RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz"
     output:
-        RESULTS_DIR+"/star/{sample}/Aligned.out.bam"
+        RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam"
         # "star/{sample}/Log.final.out",
         # "star/{sample}/ReadsPerGene.out.tab"
     log:
@@ -159,12 +159,13 @@ rule star_se:
         threads=THREADS,
         # path to STAR reference genome index
         index=STAR_INDEX,
-        outdir=RESULTS_DIR+"/star/{sample}"
+        outdir=RESULTS_DIR+"/star/{sample}/"
         # optional parameters
+    threads: THREADS
     shell:
         """
         STAR \
-            --runThreadN {params.threads} \
+            --runThreadN {threads} \
             --genomeDir {params.index} \
             --readFilesIn {input} \
             --outSAMtype BAM SortedByCoordinate \
@@ -186,24 +187,24 @@ rule star_se:
 
 rule align_all:
     input:
-        expand(RESULTS_DIR+"/star/{sample}/Aligned.out.bam", sample=SAMPLES)
+        expand(RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam", sample=SAMPLES)
 
-rule sort:
-    input: 
-        RESULTS_DIR+"/star/{sample}/Aligned.out.bam"
-    output: 
-        RESULTS_DIR+"/sorted/{sample}.sorted.bam"
-    params:
-        ""
-    threads: THREADS
-    wrapper:
-        "0.36.0/bio/samtools/sort"
+# rule sort:
+#     input: 
+#         RESULTS_DIR+"/star/{sample}/Aligned.out.bam"
+#     output: 
+#         RESULTS_DIR+"/sorted/{sample}.sorted.bam"
+#     params:
+#         ""
+#     threads: THREADS
+#     wrapper:
+#         "0.38.0/bio/samtools/sort"
 
 rule stringtie_quant:
     input:
         # merged_gtf="stringtie/merged.gtf",
         genome_gtf=GTF,
-        sample_bam=RESULTS_DIR+"/sorted/{sample}.sorted.bam"
+        sample_bam=RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam"
     output:
         gtf=RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf",
         ctabs=expand(
