@@ -1,27 +1,33 @@
-BASE_DIR:
-  /home/mileschristiansmith_gmail_com/workspace
+SE_DIR:
+  /s/guth-aci
 SOURCE_DIR:
-  /s4
+  /novaseq
 PROJECT_DIR:
-  /S4_4
+  /S4.1
 RAW_DATA_DIR:
-  /raw_data
-OUT_DIR:
-  /results
+  /data/raw_data/fastqs/s41
+RESULTS_DIR:
+  /data/results
+LOG_DIR:
+  /logs
 REF_DIR:
-  /references
+  /Volumes/guth_aci_informatics/references
 SEQUENCES_DIR:
   /genomic
 SPECIES:
   /homo_sapiens
 GTF:
-  /homo_sapiens/sequences/gencode.v29.annotation.gtf
+  /homo_sapiens/sequences/Homo_sapiens.GRCh38.97.gtf
 FASTA:
   /homo_sapiens/sequences/GRCh38.primary_assembly.genome.fa.gz
 STAR_INDEX:
-  /homo_sapiens/indices/star/gencode_v28_with_virus
+  /homo_sapiens/indices/star/ensembl_GRCh38_97
 KALLISTO_INDEX:
-  /homo_sapiens/indices/kallisto/gencode_v29_transcripts.idx
+  /homo_sapiens/indices/kallisto/gencode_v31_transcripts.idx
+SALMON_INDEX:
+  /chimeras/indices/salmon/gencode_v31_with_viruses
+SUBREAD_INDEX:
+  /chimeras/indices/subread/
 RESOURCE_DIR:
   /miscellaneous
 POLY_A:
