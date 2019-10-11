@@ -1,4 +1,5 @@
-uthor: Miles Smith
+"""
+Author: Miles Smith
 Affiliation: OMRF
 Aim: Snakemake workflow to process HyperPrep RNA-Seq data
 Date: 2019/07/22
