@@ -215,14 +215,14 @@ rule salmon_quant:
     shell:
         """
         salmon quant \
-            -l A \
+            --libtype MSR \
             -p {params.threads} \
             -i {params.index} \
             --seqBias \
             --gcBias \
             --validateMappings \
-            -1 <(gunzip -c {input.fq1}) \
-            -2 <(gunzip -c {input.fq2}) \
+            -1 {input.fq1} \
+            -2 {input.fq2} \
             -o {params.out_dir} \
         """
 
@@ -326,7 +326,16 @@ rule stringtie_quant:
         )
     threads: THREADS
     shell:
-        "stringtie -e -B -p {threads} -G {input.genome_gtf} -o {output.gtf} {input.sample_bam}"
+        """
+        stringtie \
+            -e \
+            -B \
+            -p {threads} \
+            --fr \
+            -G {input.genome_gtf} \
+            -o {output.gtf} \
+            {input.sample_bam}
+        """
 
 rule stringtie_quant_all:
     input: expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf", sample=SAMPLES)
@@ -354,3 +363,25 @@ rule run_star_multiqc:
 rule star_with_qc:
     input: LOG_DIR+"/multiqc_star_align_report.html"
     version: 1.1
+
+rule featureCounts:
+    input: expand(RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam", sample=SAMPLES)
+    output: RESULTS_DIR+"/counts.txt"
+    threads: THREADS
+    params:
+        annotation = GTF
+    shell:
+        """
+        featureCounts \
+            -a {params.annotation} \
+            -F GTF \
+            -g gene_name \
+            -p \
+            -s 2 \
+            -T {threads} \
+            -o {output} \
+            {input}
+        """
+
+rule featureCounts_all:
+    input: RESULTS_DIR+"/counts.txt"
