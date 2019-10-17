@@ -364,9 +364,17 @@ rule star_with_qc:
     input: LOG_DIR+"/multiqc_star_align_report.html"
     version: 1.1
 
+rule rename_star_results
+    input: RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam"
+    output: RESULTS_DIR+"/star/{sample}.bam"
+    shell:
+        """
+        mv {input} {output}
+        """
+
 rule featureCounts:
-    input: expand(RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam", sample=SAMPLES)
-    output: RESULTS_DIR+"/counts.txt"
+    input: RESULTS_DIR+"/star/{sample}.bam"
+    output: RESULTS_DIR+"/featureCounts/{sample}.txt"
     threads: THREADS
     params:
         annotation = GTF
@@ -384,4 +392,4 @@ rule featureCounts:
         """
 
 rule featureCounts_all:
-    input: RESULTS_DIR+"/counts.txt"
+    input: expand(RESULTS_DIR+"/featureCounts/{sample}.txt", sample=SAMPLES)
