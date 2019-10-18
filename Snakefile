@@ -211,7 +211,7 @@ rule salmon_quant:
         out_dir=RESULTS_DIR+"/salmon/{sample}/"
     log:
         LOG_DIR+"/salmon/salmon_{sample}.log"
-    version: 1.0
+    version: 2.0
     shell:
         """
         salmon quant \
@@ -309,15 +309,21 @@ rule star_align:
             --runThreadN {threads}
         """
 
+rule rename_star_results:
+    input: RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam"
+    output: RESULTS_DIR+"/star/{sample}.bam"
+    shell:
+        "mv {input} {output}"
+
 rule star_align_all:
     input:
-        expand(RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam", sample=SAMPLES)
+        expand(RESULTS_DIR+"/star/{sample}.bam", sample=SAMPLES)
 
 rule stringtie_quant:
     input:
         # merged_gtf="stringtie/merged.gtf",
         genome_gtf=GTF,
-        sample_bam=RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam"
+        sample_bam=RESULTS_DIR+"/star/{sample}.bam"
     output:
         gtf=RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf",
         ctabs=expand(
@@ -344,11 +350,12 @@ rule run_star_multiqc:
     input:
         fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
                               sample=SAMPLES),
-        alignment_results=expand(RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam",
-                                   sample=SAMPLES),
+        alignment_results=expand(RESULTS_DIR+"/star/{sample}.bam",
+                                 sample=SAMPLES),
         contamination=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
-                      sample = SAMPLES),
-	quant_results=expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf", sample=SAMPLES)
+                             sample = SAMPLES),
+	    quant_results=expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf",
+                             sample=SAMPLES)
     output:
         LOG_DIR+"/multiqc_star_align_report.html"
     params:
@@ -363,14 +370,6 @@ rule run_star_multiqc:
 rule star_with_qc:
     input: LOG_DIR+"/multiqc_star_align_report.html"
     version: 1.1
-
-rule rename_star_results
-    input: RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam"
-    output: RESULTS_DIR+"/star/{sample}.bam"
-    shell:
-        """
-        mv {input} {output}
-        """
 
 rule featureCounts:
     input: RESULTS_DIR+"/star/{sample}.bam"
