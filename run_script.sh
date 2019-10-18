@@ -14,4 +14,4 @@ snakemake \
 --use-singularity \
 --latency-wait 60 \
 --rerun-incomplete \
-featureCounts_all
+run_all

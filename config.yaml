@@ -17,15 +17,15 @@ SEQUENCES_DIR:
 SPECIES:
   /homo_sapiens
 GTF:
-  /homo_sapiens/sequences/Homo_sapiens.GRCh38.97.gtf
+  /homo_sapiens/sequences/gencode.v32.primary_assembly.annotation.gtf
 FASTA:
-  /homo_sapiens/sequences/GRCh38.primary_assembly.genome.fa.gz
+  /homo_sapiens/sequences/GRCh38.primary_assembly.genome.fa
 STAR_INDEX:
-  /homo_sapiens/indices/star/ensembl_GRCh38_97
+  /homo_sapiens/indices/star/gencode_v32
 KALLISTO_INDEX:
   /homo_sapiens/indices/kallisto/gencode_v31_transcripts.idx
 SALMON_INDEX:
-  /chimeras/indices/salmon/gencode_v31_with_viruses
+  /homo_sapiens/indices/salmon/gencode_v32
 SUBREAD_INDEX:
   /chimeras/indices/subread/
 RESOURCE_DIR:
