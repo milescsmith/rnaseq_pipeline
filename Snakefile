@@ -65,7 +65,6 @@ rule run_all:
         star_with_stringtie: LOG_DIR+"/multiqc_star_align_report.html"
         star_with_featureCounts: LOG_DIR+"/multiqc_star_align_report.html"
 
-
 rule initial_qc:
     """Use Fastqc to examine the quality of the fastqs from the CGC."""
     input:
@@ -409,8 +408,6 @@ rule compress_featureCounts:
     threads:
     shell: "pigz -p {threads} {input}"
 
-rule featureCounts_all:
-    input: RESULTS_DIR+"/featureCounts/counts.txt.gz"
 
 rule run_star_featureCounts_multiqc:
     input:
@@ -432,3 +429,8 @@ rule run_star_featureCounts_multiqc:
         "-ip"
     wrapper:
         "0.38.0/bio/multiqc"
+
+rule featureCounts_all:
+    input: 
+        counts = RESULTS_DIR+"/featureCounts/counts.txt.gz",
+        summary = LOG_DIR+"/multiqc_star_align_report.html"
