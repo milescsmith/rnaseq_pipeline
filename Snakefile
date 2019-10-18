@@ -58,6 +58,14 @@ SAMPLES = [_.split("/")[-1]
 # print(RAW_DATA_DIR)
 # print(SAMPLES[0])
 
+rule run_all:
+    input:
+        kallisto: LOG_DIR+"/multiqc_kallisto_align_report.html",
+        salmon: expand(RESULTS_DIR+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES)
+        star_with_stringtie: LOG_DIR+"/multiqc_star_align_report.html"
+        star_with_featureCounts: LOG_DIR+"/multiqc_star_align_report.html"
+
+
 rule initial_qc:
     """Use Fastqc to examine the quality of the fastqs from the CGC."""
     input:
@@ -346,7 +354,7 @@ rule stringtie_quant:
 rule stringtie_quant_all:
     input: expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf", sample=SAMPLES)
 
-rule run_star_multiqc:
+rule run_star_stringtie_multiqc:
     input:
         fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
                               sample=SAMPLES),
@@ -363,6 +371,7 @@ rule run_star_multiqc:
         "-m fastqc",
         "-m bbmap",
         "-m star",
+        "-m"
         "-ip"
     wrapper:
         "0.38.0/bio/multiqc"
@@ -372,8 +381,10 @@ rule star_with_qc:
     version: 1.1
 
 rule featureCounts:
-    input: RESULTS_DIR+"/star/{sample}.bam"
-    output: RESULTS_DIR+"/featureCounts/{sample}.txt"
+    input: expand(RESULTS_DIR+"/star/{sample}.bam", sample=SAMPLES)
+    output: 
+        counts = RESULTS_DIR+"/featureCounts/counts.txt",
+        summary = RESULTS_DIR+"/featureCounts/counts.txt.summary"
     threads: THREADS
     params:
         annotation = GTF
@@ -386,9 +397,38 @@ rule featureCounts:
             -p \
             -s 2 \
             -T {threads} \
-            -o {output} \
+            -o {output.counts} \
+            -B \
+            -C \
             {input}
         """
 
+rule compress_featureCounts:
+    input: RESULTS_DIR+"/featureCounts/counts.txt""
+    output: RESULTS_DIR+"/featureCounts/counts.txt.gz"
+    threads:
+    shell: "pigz -p {threads} {input}"
+
 rule featureCounts_all:
-    input: expand(RESULTS_DIR+"/featureCounts/{sample}.txt", sample=SAMPLES)
+    input: RESULTS_DIR+"/featureCounts/counts.txt.gz"
+
+rule run_star_featureCounts_multiqc:
+    input:
+        fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
+                              sample=SAMPLES),
+        alignment_results=expand(RESULTS_DIR+"/star/{sample}.bam",
+                                 sample=SAMPLES),
+        contamination=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
+                             sample = SAMPLES),
+	    quant_results=RESULTS_DIR+"/featureCounts/counts.txt.summary"
+    output:
+        LOG_DIR+"/multiqc_star_align_report.html"
+    params:
+        "-m bcl2fastq",
+        "-m fastqc",
+        "-m bbmap",
+        "-m star",
+        "-m featureCounts",
+        "-ip"
+    wrapper:
+        "0.38.0/bio/multiqc"
