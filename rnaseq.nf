@@ -1,44 +1,40 @@
 """
 Author: Miles Smith
 Affiliation: OMRF
-Aim: Snakemake workflow to process HyperPrep RNA-Seq data
-Date: 2019/07/22
+Aim: Nextflow pipeline to process HyperPrep RNA-Seq data
+Date: 2019/11/06
 """
 version: 2.2
 
-# libraries for Python functions
-from pathlib import Path
-from itertools import chain, combinations
-from os.path import join
-from os import getcwd, environ
-import glob
-import re
-
 # Read in the values from the configuration file and build up the locations
 # of files required in the pipeline
-BASE_DIR = config["BASE_DIR"]
-SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
-PROJECT_DIR = SOURCE_DIR + config["PROJECT_DIR"]
-RAW_DATA_DIR = PROJECT_DIR + config["RAW_DATA_DIR"]
-RESULTS_DIR = PROJECT_DIR + config["RESULTS_DIR"]
-LOG_DIR = PROJECT_DIR + config["LOG_DIR"]
-REF_DIR = config["REF_DIR"]
-SEQUENCES_DIR = REF_DIR + config["SEQUENCES_DIR"]
-GTF = SEQUENCES_DIR + config["GTF"]
-FASTA = SEQUENCES_DIR + config["FASTA"]
-STAR_INDEX = SEQUENCES_DIR + config["STAR_INDEX"]
-KALLISTO_INDEX = SEQUENCES_DIR + config["KALLISTO_INDEX"]
-SALMON_INDEX = SEQUENCES_DIR + config["SALMON_INDEX"]
-SUBREAD_INDEX = SEQUENCES_DIR + config["SUBREAD_INDEX"]
-RSEM_INDEX = SEQUENCES_DIR + config["RSEM_INDEX"]
-RESOURCE_DIR = REF_DIR + config["RESOURCE_DIR"]
-GENOME_BUILD = config["GENOME_BUILD"]
-POLY_A = RESOURCE_DIR + config["POLY_A"]
-TRUSEQ_RNA = RESOURCE_DIR + config["TRUSEQ_RNA"]
-TRUSEQ = RESOURCE_DIR + config["TRUSEQ"]
-RRNAREF = RESOURCE_DIR + config["RRNAREF"]
+params.reads_pattern    = "*_S*_L00*_R{1,2}_00*.fastq.gz"
 
-USER = environ.get("USER")
+params.base                      = ""
+params.source                    = "${params.base}"
+params.project                   = "${params.source}"
+params.raw_data                  = "${params.project}/data/raw_data"
+params.results                   = "${params.project}/data/results"
+params.logs                      = "${params.project}/logs"
+params.refs                      = "${params.base}/reference"
+params.sequences                 = "${params.refs}/sequences"
+params.indices                   = "${params.refs}/indices"
+params.miscellaneous             = "${params.bucket}/references/miscellaneous"
+
+params.gtf                      = "${params.sequences}/gencode.v32.primary_assembly.annotation.gtf"
+params.fasta                    = "${params.sequences}/GRCh38.primary_assembly.genome.fa"
+params.star_index               = "${params.indices}" sequences_dir + config["star_index"]
+params.salmon_index             = "${params.indices}/ensembl97"
+params.subread_index            = "${params.indices}" sequences_dir + config["subread_index"]
+
+params.truseq_rna               = "${params.miscellaneous_sequences}/truseq.fa.gz"
+params.poly_a                   = "${params.miscellaneous_sequences}/polyA.fa.gz"
+params.truseq_adapter           = "${params.miscellaneous_sequences}/truseq.fa.gz"
+params.truseq_rna_adapter       = "${params.miscellaneous_sequences}/truseq_rna.fa.gz"
+params.rRNAs                    = "${params.miscellaneous_sequences}/human_ribosomal.fa"
+
+params.reads                    = "${params.raw_data}/${params.reads_pattern}"
+
 
 THREADS = 16
 
@@ -288,6 +284,7 @@ rule star_align:
     log:
         LOG_DIR+"/star/{sample}.log"
     params:
+        threads=THREADS,
         index=STAR_INDEX,
         outdir=RESULTS_DIR+"/star/{sample}/"
     threads: THREADS
@@ -429,86 +426,22 @@ rule featureCounts_all:
         counts=RESULTS_DIR+"/featureCounts/counts.txt.gz",
         summary=LOG_DIR+"/multiqc_star_featureCounts_align_report.html"
 
-rule rsem_analysis:
-    version: 1.0
+rule convert_for_rsem:
     input:
-        R1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        R2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
+        RESULTS_DIR+"/star/{sample}.bam"
     output:
-        genes=RESULTS_DIR+"/rsem/{sample}/{sample}.genes.results",
-        isoforms=RESULTS_DIR+"/rsem/{sample}/{sample}.isoforms.results",
-        alignment=RESULTS_DIR+"/rsem/{sample}/{sample}.transcript.bam",
-        stats=RESULTS_DIR+"/rsem/{sample}/{sample}.stat/{sample}.cnt",
+        RESULTS_DIR+"/rsem_sorted/{sample}.bam"
     threads:
         THREADS
     singularity:
         "docker://dceoy/rsem"
     params:
-        index=RSEM_INDEX,
-        prefix=RESULTS_DIR+"/rsem/{sample}/{sample}",
         mem_per_thread=8
-    resources:
-        mem_mb=32768
-    log:
-        LOG_DIR+"/rsem/{sample}.log"
     shell:
         """
-        rsem-calculate-expression \
-            --ci-memory {resources.mem_mb} \
-            --calc-ci \
-            --calc-pme \
-            --strandedness reverse \
-            --star \
-            --star-gzipped-read-file \
-            --num-threads {threads} \
-            --paired-end \
-            {input.R1} \
-            {input.R2} \
-            {params.index} \
-            {params.prefix} \
-            2> {log}
+        convert-sam-for-rsem --num-threads {threads} --memory-per-thread {params.mem_per_thread} {input} {output}
         """
 
-rule run_rsem:
+rule convert_all_for_rsem:
     input: 
-        expand(RESULTS_DIR+"/rsem/{sample}/{sample}.genes.results", sample=SAMPLES)
-
-rule gather_rsem:
-    version: 1.0
-    input:
-        matrices=expand(RESULTS_DIR+"/rsem/{sample}/{sample}.genes.results", sample=SAMPLES)
-    output:
-        RESULTS_DIR+"/rsem/counts.matrix"
-    singularity:
-        "docker://dceoy/rsem"
-    shell:
-        """
-        rsem-generate-data-matrix {input.matrices} > {output}
-        """
-
-rule run_rsem_multiqc:
-    input:
-        fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
-                              sample=SAMPLES),
-        alignment_results=expand(RESULTS_DIR+"/rsem/{sample}/{sample}.transcript.bam",
-                                 sample=SAMPLES),
-        contamination=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
-                             sample = SAMPLES),
-	    rsem_stats=expand(RESULTS_DIR+"/rsem/{sample}/{sample}.stat/{sample}.cnt",
-                             sample=SAMPLES)
-    output:
-        LOG_DIR+"/multiqc_rsem_report.html"
-    params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m star",
-        "-m rsem",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
-
-rule rsem_qc:
-    version: 1.1
-    input:
-        QC=LOG_DIR+"/multiqc_rsem_report.html",
-        COUNTS= RESULTS_DIR+"/rsem/counts.matrix"
+        expand(RESULTS_DIR+"/rsem_sorted/{sample}.bam", sample=SAMPLES)

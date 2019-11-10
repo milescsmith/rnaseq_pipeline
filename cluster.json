@@ -2,16 +2,16 @@
     "__default__" :
     {
         "partition"    : "serial",
-        "cpus-per-task": 4,
-        "mem"          : 24,
+        "cpus-per-task": 8,
+        "mem"          : 64,
         "job-name"     : "JOBNAME.{rule}.{wildcards}",
         "output"       : "logs/cluster/{rule}.{wildcards}.out",
         "error"        : "logs/cluster/{rule}.{wildcards}.err",
         "mail-user"    : "miles-smith@omrf.org",
         "mail-type"    : "ALL",
         "nodes"        : 1,
-        "mem-per-cpu"  : 6,
+        "mem-per-cpu"  : 8,
         "path"         : "PATH",
-        "java_opts"    : "_JAVA_OPTIONS='-Xmx24G -Xms4G -XX:+UseParallelGC -XX:ParallelGCThreads=4'"
+        "java_opts"    : "_JAVA_OPTIONS='-Xmx32G -Xms4G -XX:+UseParallelGC -XX:ParallelGCThreads=4'"
     }
 }
