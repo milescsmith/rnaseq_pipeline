@@ -1,24 +1,22 @@
-FROM ubuntu:18.04
+FROM gliderlabs/alpine:3.9
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        build-essential \
-        wget \
-        hdf5-tools \
-        libhdf5-dev \
-        hdf5-helpers \
-        libhdf5-serial-dev \
-        git \
-        apt-utils \
-        python3 \
-        python3-pip \
-        unzip \
-        openjdk-11-jre \
-        fastqc && \
-    apt-get clean && \
-    rm -rf /tmp/downloaded_packages/ /tmp/*.rds && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk --no-cache --update-cache -U add tzdata && \
+    cp /usr/share/zoneinfo/America/Chicago /etc/localtime && \
+    apk --no-cache --update-cache add \
+        curl \
+        openjdk8 \
+        perl && \
+     rm -rf /var/cache/apk/*
 
-RUN pip3 install setuptools wheel && pip3 install kubernetes
+WORKDIR /opt
 
-CMD ["fastqc"]
+RUN curl -L https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.8.zip -o fastqc.zip && \
+    unzip fastqc.zip && \
+    chmod 750 FastQC/fastqc && \
+    ln -s FastQC/fastqc /usr/local/bin/fastqc
+
+WORKDIR /root
+
+ENV PATH="/opt/FastQC:${PATH}"
+
+CMD ["fastqc", "--help"]

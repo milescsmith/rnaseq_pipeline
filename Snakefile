@@ -67,23 +67,33 @@ rule run_all:
         star_with_featureCounts=LOG_DIR+"/multiqc_star_featureCounts_align_report.html"
 
 rule initial_qc:
-    """Use Fastqc to examine the quality of the fastqs from the CGC."""
+    """Use Fastqc to examine fastq quality."""
     input:
         R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
         R2=RAW_DATA_DIR+"/{sample}_R2_001.fastq.gz"
     params:
         threads=f"--threads {THREADS}",
-        #outdir=RESULTS_DIR+"/qc/{sample}"
+        outdir=RESULTS_DIR+"/qc/{sample}"
     output:
         html=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
         zip=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.zip"
-    # singularity:
-    #     "docker://milescsmith/fastqc"
+    singularity:
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/fastqc:0.11.8"
     log:
         LOG_DIR+"/fastqc/fastqc_{sample}.log"
-    version: 1.3
-    wrapper:
-        "0.38.0/bio/fastqc"
+    threads:
+        THREADS
+    version: 2.0
+    shell:
+        """
+        mkdir -p {params.outdir} && \
+        fastqc \
+            --noextract \
+            --outdir {params.outdir} \
+            --format fastq \
+            --threads {threads} \
+            {input.R1} {input.R2}
+        """
 
 rule initial_qc_all:
     """Target rule to run just the inital Fastqc"""
@@ -112,8 +122,8 @@ rule perfom_trimming:
         wasteR2=RESULTS_DIR+"/trimmed/removed_{sample}.R2.fq.gz",
         # to collect metrics on how many ribosomal reads were eliminated
         contam=LOG_DIR+"/trimmed/contam_{sample}.csv"
-    #singularity:
-    #    "docker://milescsmith/bbmap"
+    singularity:
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/bbmap:38.72"
     version: 2.1
     shell:
         """
@@ -149,60 +159,6 @@ rule expand_trimming:
         contam=expand(LOG_DIR+"/contam_{sample}.csv",
                       sample = SAMPLES)
 
-rule kallisto_quant:
-    """Psuedoalign sequences using Kallisto. MUCH faster than STAR and 
-    I"m not convinced that STAR is any better at the alignment."""
-    input:
-        fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        fq2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
-        GTF=GTF
-    output:
-        RESULTS_DIR+"/kallisto/{sample}/abundance.h5",
-        RESULTS_DIR+"/kallisto/{sample}/abundance.tsv",
-        RESULTS_DIR+"/kallisto/{sample}/run_info.json"
-    params:
-        index=KALLISTO_INDEX,
-        threads=THREADS,
-        out_dir=RESULTS_DIR+"/kallisto/{sample}/"
-    log:
-        LOG_DIR+"/kallisto/kallisto_{sample}.log"
-    #singularity:
-    #    "docker://milescsmith/kallisto"
-    version: 1.2
-    shell:
-        """
-        kallisto quant -t {params.threads} \
-            -o {params.out_dir} \
-            -i {params.index} \
-            --rf-stranded \
-            --bootstrap-samples=12 \
-            --gtf {input.GTF} \
-            --bias {input.fq1} {input.fq2}
-        """
-rule kallisto_quant_all:
-    """Target rule to force alignement of all the samples. If aligning 
-    with Kallisto, use this as the target run since Kallisto typically does 
-    not make the bam files needed below."""
-    input: expand(RESULTS_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES)
-
-rule run_kallisto_multiqc:
-    input:
-        kallisto_results = expand(RESULTS_DIR+"/kallisto/{sample}/abundance.h5", sample=SAMPLES),
-        log_files = LOG_DIR
-    output:
-        LOG_DIR+"/multiqc_kallisto_align_report.html"
-    params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m kallisto",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
-
-rule kallisto_with_qc:
-    input: LOG_DIR+"/multiqc_kallisto_align_report.html"
-    version: 1.2
-
 rule salmon_quant:
     """Psuedoalign sequences using Salmon. MUCH faster than STAR and 
     I"m not convinced that STAR is any better at the alignment.
@@ -212,13 +168,15 @@ rule salmon_quant:
         fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
         fq2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
     output:
-        RESULTS_DIR+"/salmon/{sample}/quant.sf"
+        quant=RESULTS_DIR+"/salmon/{sample}/quant.sf"
+        dir=directory(RESULTS_DIR+"/salmon/{sample}/")
     params:
         index=SALMON_INDEX,
         threads=THREADS,
-        out_dir=RESULTS_DIR+"/salmon/{sample}/"
     log:
         LOG_DIR+"/salmon/salmon_{sample}.log"
+    singularity:
+        "docker://combinelab/salmon:1.0.0"
     version: 2.0
     shell:
         """
@@ -231,7 +189,7 @@ rule salmon_quant:
             --validateMappings \
             --mates1 {input.fq1} \
             --mates2 {input.fq2} \
-            --output {params.out_dir} \
+            --output {output.dir}
         """
 
 rule salmon_quant_all:
@@ -243,21 +201,38 @@ rule salmon_quant_all:
 
 rule run_salmon_multiqc:
     input:
-        alignment_results=expand(RESULTS_DIR+"/salmon/{sample}/quant.sf",
-                                   sample=SAMPLES),
-        fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html", 
-                                sample=SAMPLES),
-        contam=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
-                      sample = SAMPLES)
+        alignment_results=set([path.dirname(i) 
+                               for i 
+                               in expand(RESULTS_DIR+"/salmon/{sample}/quant.sf",sample=SAMPLES)
+        ]),
+        fastqc_results=set([path.dirname(j)
+                            for j
+                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES),
+        ])
+        contam=set([path.dirname(k)
+                    for k
+                    in expand(LOG_DIR+"/trimmed/contam_{sample}.csv",sample = SAMPLES)
+        ])
     output:
         LOG_DIR+"/multiqc_salmon_align_report.html"
     params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m salmon",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
+        outdir=LOG_DIR
+        reportname="/multiqc_salmon_align_report.html"
+    singularity:
+        "docker://ewels/multiqc:1.7"
+    shell:
+        """
+        multiqc \
+            -m fastqc \
+            -m bbmap \
+            -m salmon \
+            -ip \
+            --outdir {params.outdir} \
+            --filename {params.reportname} \
+            {input.alignment_results} \
+            {input.fastqc_results} \
+            {input.contam}
+        """
 
 rule salmon_with_qc:
     input: LOG_DIR+"/multiqc_salmon_align_report.html"
@@ -273,7 +248,10 @@ rule compress_salmon_results:
     version: 1.0
     shell:
         """
-        pigz -v -p {params.threads} {input.quant}
+        pigz \
+            -v \
+            -p {params.threads} \
+            {input.quant}
         """
 
 rule can_fish:
@@ -291,6 +269,8 @@ rule star_align:
         index=STAR_INDEX,
         outdir=RESULTS_DIR+"/star/{sample}/"
     threads: THREADS
+    singularity:
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/star"
     shell:
     # The following options are based on the given ENCODE options
     # in the STAR manual
@@ -353,23 +333,45 @@ rule stringtie_quant_all:
 
 rule run_star_stringtie_multiqc:
     input:
-        fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
-                              sample=SAMPLES),
-        alignment_results=expand(RESULTS_DIR+"/star/{sample}.bam",
-                                 sample=SAMPLES),
-        contamination=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
-                             sample = SAMPLES),
-	    quant_results=expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf",
-                             sample=SAMPLES)
+        alignment_results=set([path.dirname(i)
+                               for i
+                               in expand(RESULTS_DIR+"/star/{sample}.bam",
+                               sample=SAMPLES)
+        ]),
+        fastqc_results=set([path.dirname(j)
+                            for j
+                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES),
+        ]),
+        contamination=set([path.dirname(k)
+                           for k
+                           in expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
+                           sample = SAMPLES)
+        ]),
+        quant_results=set([path.dirname(m)
+                           for m
+                           in expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf",sample=SAMPLES)
+        ])
     output:
         LOG_DIR+"/multiqc_star_stringtie_align_report.html"
     params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m star",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
+        outdir=LOG_DIR
+        reportname="/multiqc_star_stringtie_align_report.html"
+    singularity:
+        "docker://ewels/multiqc:1.7"
+    shell:
+        """
+        multiqc \
+            -m fastqc \
+            -m bbmap \
+            -m star \
+            -ip \
+            --outdir {params.outdir} \
+            --filename {params.reportname} \
+            {input.alignment_results} \
+            {input.fastqc_results} \
+            {input.contamination} \
+            {input.quant_results}
+        """
 
 rule star_with_stringtie_qc:
     input: LOG_DIR+"/multiqc_star_stringtie_align_report.html"
@@ -383,6 +385,8 @@ rule featureCounts:
     threads: THREADS
     params:
         annotation = GTF
+    singularity:
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/subread:2.0.0"
     shell:
         """
         featureCounts \
@@ -406,23 +410,43 @@ rule compress_featureCounts:
 
 rule run_star_with_featureCounts_qc:
     input:
-        fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
-                              sample=SAMPLES),
-        alignment_results=expand(RESULTS_DIR+"/star/{sample}.bam",
-                                 sample=SAMPLES),
-        contamination=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
-                             sample = SAMPLES),
+        alignment_results=set([path.dirname(i)
+                               for i
+                               in expand(RESULTS_DIR+"/star/{sample}.bam",
+                               sample=SAMPLES)
+        ]),
+        fastqc_results=set([path.dirname(j)
+                            for j
+                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES),
+        ]),
+        contamination=set([path.dirname(k)
+                           for k
+                           in expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
+                           sample = SAMPLES)
+        ]),
 	    quant_results=RESULTS_DIR+"/featureCounts/counts.txt.summary"
     output:
         LOG_DIR+"/multiqc_star_featureCounts_align_report.html"
     params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m star",
-        "-m featureCounts",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
+        outdir=LOG_DIR
+        reportname="/multiqc_star_featureCounts_align_report.html"
+    singularity:
+        "docker://ewels/multiqc:1.7"
+    shell:
+        """
+        multiqc \
+            -m fastqc \
+            -m bbmap \
+            -m star \
+            -m featureCounts \
+            -ip \
+            --outdir {params.outdir} \
+            --filename {params.reportname} \
+            {input.alignment_results} \
+            {input.fastqc_results} \
+            {input.contamination} \
+            {input.quant_results}
+        """
 
 rule featureCounts_all:
     input: 
@@ -488,24 +512,47 @@ rule gather_rsem:
 
 rule run_rsem_multiqc:
     input:
-        fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
-                              sample=SAMPLES),
-        alignment_results=expand(RESULTS_DIR+"/rsem/{sample}/{sample}.transcript.bam",
-                                 sample=SAMPLES),
-        contamination=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
-                             sample = SAMPLES),
-	    rsem_stats=expand(RESULTS_DIR+"/rsem/{sample}/{sample}.stat/{sample}.cnt",
-                             sample=SAMPLES)
+        alignment_results=set([path.dirname(i)
+                               for i
+                               in expand(RESULTS_DIR+"/star/{sample}.bam",
+                               sample=SAMPLES)
+        ]),
+        fastqc_results=set([path.dirname(j)
+                            for j
+                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES),
+        ]),
+        contamination=set([path.dirname(k)
+                           for k
+                           in expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
+                           sample = SAMPLES)
+        ]),
+	    rsem_stats=set([path.dirname(m)
+                        for m
+                        in expand(RESULTS_DIR+"/rsem/{sample}/{sample}.stat/{sample}.cnt",
+                                                     sample=SAMPLES)
+        ])
     output:
         LOG_DIR+"/multiqc_rsem_report.html"
     params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m star",
-        "-m rsem",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
+        outdir=LOG_DIR
+        reportname="/multiqc_rsem_report.html"
+    singularity:
+        "docker://ewels/multiqc:1.7"
+    shell:
+        """
+        multiqc \
+            -m fastqc \
+            -m bbmap \
+            -m star \
+            -m rsem \
+            -ip \
+            --outdir {params.outdir} \
+            --filename {params.reportname} \
+            {input.alignment_results} \
+            {input.fastqc_results} \
+            {input.contamination} \
+            {input.rsem_stats}
+        """
 
 rule rsem_qc:
     version: 1.1
