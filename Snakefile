@@ -2,17 +2,16 @@
 Author: Miles Smith
 Affiliation: OMRF
 Aim: Snakemake workflow to process HyperPrep RNA-Seq data
-Date: 2019/07/22
+Date: 2019/11/14
 """
-version: 2.2
+version: 3.0
 
 # libraries for Python functions
-from pathlib import Path
-from itertools import chain, combinations
 from os.path import join
-from os import getcwd, environ
+from os import getcwd, environ, path
 import glob
 import re
+
 
 # Read in the values from the configuration file and build up the locations
 # of files required in the pipeline
@@ -72,7 +71,6 @@ rule initial_qc:
         R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
         R2=RAW_DATA_DIR+"/{sample}_R2_001.fastq.gz"
     params:
-        threads=f"--threads {THREADS}",
         outdir=RESULTS_DIR+"/qc/{sample}"
     output:
         html=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
