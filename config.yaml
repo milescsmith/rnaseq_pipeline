@@ -1,0 +1,40 @@
+PROJECT_DIR:
+  /s/guth-aci/novaseq/dockerized_test
+RAW_DATA_DIR:
+  /data/raw_data/fastqs
+RESULTS_DIR:
+  /data/results
+LOG_DIR:
+  /logs
+REF_DIR:
+  /references
+SEQUENCES_DIR:
+  /genomic
+SPECIES:
+  /homo_sapiens
+GTF:
+  /homo_sapiens/sequences/gencode.v32.primary_assembly.annotation.gtf
+FASTA:
+  /homo_sapiens/sequences/GRCh38.primary_assembly.genome.fa
+STAR_INDEX:
+  /homo_sapiens/indices/star/gencode_v32
+SALMON_INDEX:
+  /homo_sapiens/indices/salmon/gencode_v32
+SUBREAD_INDEX:
+  /chimeras/indices/subread/
+RSEM_INDEX:
+  /homo_sapiens/indices/rsem/rsem_gencode_v32
+RESOURCE_DIR:
+  /miscellaneous
+POLY_A:
+  /polyA.fa.gz
+TRUSEQ_RNA:
+  /truseq_rna.fa.gz
+TRUSEQ:
+  /truseq.fa.gz
+RRNAREF:
+  /human_ribosomal.fa
+TRANSCRIPTOME:
+  ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_32/gencode.v32.transcripts.fa.gz
+GENOME:
+  ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_32/GRCh38.primary_assembly.genome.fa.gz

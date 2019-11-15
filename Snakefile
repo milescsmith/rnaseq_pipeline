@@ -12,12 +12,12 @@ from os import getcwd, environ, path
 import glob
 import re
 
+from snakemake.remote.FTP import RemoteProvider as FTPRemoteProvider
+FTP = FTPRemoteProvider()
 
 # Read in the values from the configuration file and build up the locations
 # of files required in the pipeline
-BASE_DIR = config["BASE_DIR"]
-SOURCE_DIR = BASE_DIR + config["SOURCE_DIR"]
-PROJECT_DIR = SOURCE_DIR + config["PROJECT_DIR"]
+PROJECT_DIR = config["PROJECT_DIR"]
 RAW_DATA_DIR = PROJECT_DIR + config["RAW_DATA_DIR"]
 RESULTS_DIR = PROJECT_DIR + config["RESULTS_DIR"]
 LOG_DIR = PROJECT_DIR + config["LOG_DIR"]
@@ -26,16 +26,21 @@ SEQUENCES_DIR = REF_DIR + config["SEQUENCES_DIR"]
 GTF = SEQUENCES_DIR + config["GTF"]
 FASTA = SEQUENCES_DIR + config["FASTA"]
 STAR_INDEX = SEQUENCES_DIR + config["STAR_INDEX"]
-KALLISTO_INDEX = SEQUENCES_DIR + config["KALLISTO_INDEX"]
 SALMON_INDEX = SEQUENCES_DIR + config["SALMON_INDEX"]
 SUBREAD_INDEX = SEQUENCES_DIR + config["SUBREAD_INDEX"]
 RSEM_INDEX = SEQUENCES_DIR + config["RSEM_INDEX"]
 RESOURCE_DIR = REF_DIR + config["RESOURCE_DIR"]
-GENOME_BUILD = config["GENOME_BUILD"]
 POLY_A = RESOURCE_DIR + config["POLY_A"]
 TRUSEQ_RNA = RESOURCE_DIR + config["TRUSEQ_RNA"]
 TRUSEQ = RESOURCE_DIR + config["TRUSEQ"]
 RRNAREF = RESOURCE_DIR + config["RRNAREF"]
+
+TRANSCRIPTOME = config["TRANSCRIPTOME"]
+GENOME = config["GENOME"]
+
+TRANSCRIPTOME_VERSION = TRANSCRIPTOME.split("/")[-1]
+TRANSCRIPTOME_NAME = ".".join(TRANSCRIPTOME_VERSION.split(".")[:2])
+GENOME_VERSION = GENOME.split("/")[-1]
 
 USER = environ.get("USER")
 
@@ -126,22 +131,22 @@ rule perfom_trimming:
     shell:
         """
         bbduk.sh \
-                in={input.R1} \
-                in2={input.R2} \
-                outu={output.filteredR1} \
-                out2={output.filteredR2} \
-                outm={output.wasteR1} \
-                outm2={output.wasteR2} \
-                ref={params.polyA_ref},{params.truseq_adapter_ref},{params.truseq_rna_adapter_ref},{params.rRNA_ref} \
-                stats={output.contam} \
-                statscolumns=3 \
-                k=13 \
-                ktrim=r \
-                useshortkmers=t \
-                mink=5 \
-                qtrim=r \
-                trimq=10 \
-                minlength=20
+            in={input.R1} \
+            in2={input.R2} \
+            outu={output.filteredR1} \
+            out2={output.filteredR2} \
+            outm={output.wasteR1} \
+            outm2={output.wasteR2} \
+            ref={params.polyA_ref},{params.truseq_adapter_ref},{params.truseq_rna_adapter_ref},{params.rRNA_ref} \
+            stats={output.contam} \
+            statscolumns=3 \
+            k=13 \
+            ktrim=r \
+            useshortkmers=t \
+            mink=5 \
+            qtrim=r \
+            trimq=10 \
+            minlength=20
         """
 
 rule expand_trimming:
@@ -157,6 +162,64 @@ rule expand_trimming:
         contam=expand(LOG_DIR+"/contam_{sample}.csv",
                       sample = SAMPLES)
 
+rule retrieve_source_sequences:
+    """If the files to build a reference are not available, retrieve them"""
+    input:
+        transcriptome=FTP.remote(TRANSCRIPTOME),
+        genome=FTP.remote(GENOME)
+    output:
+        transcriptome=SEQUENCES_DIR+TRANSCRIPTOME_VERSION,
+        genome=SEQUENCES_DIR+GENOME_VERSION
+    params:
+    log:
+    singularity:
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/snakemake"
+    shell:
+        """
+        mv {input.transcriptome} {output.transcriptome}
+        mv {input.genome} {output.genome}
+        """
+
+rule build_genome_decoys:
+    input:
+        genome=SEQUENCES_DIR+GENOME_VERSION,
+        transcriptome=SEQUENCES_DIR+TRANSCRIPTOME_VERSION
+    output:
+        decoys=SEQUENCES_DIR+"/"+TRANSCRIPTOME_NAME+".decoys.txt",
+        gentrome=SEQUENCES_DIR+"/"+TRANSCRIPTOME_NAME+".gentrome.fa.gz"
+    singularity:
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/snakemake"
+    shell:
+        """
+        grep '^>' <(zcat {input.genome}) | cut -d ' ' -f 1 > {output.decoys}
+        sed -i -e 's/>//g' {output.decoys}
+        cat {input.transcriptome} {input.genome} > {output.gentrome}
+        """
+
+rule build_salmon_index:
+    """If the index does not exist, build it."""
+    input:
+        decoys=SEQUENCES_DIR+"/"+TRANSCRIPTOME_NAME+".decoys.txt",
+        gentrome=SEQUENCES_DIR+"/"+TRANSCRIPTOME_NAME+".gentrome.fa.gz"
+    output:
+        salmon_index=dir(SALMON_INDEX)
+    threads:
+        THREADS
+    log: LOG_DIR+"/salmon_index"
+    singularity:
+        "docker://combinelab/salmon:1.0.0"
+    version: 1.0
+    shell:
+        """
+        salmon \
+            index \
+            --transcripts {input.gentrome} \
+            --decoys {input.decoys} \
+            --threads {threads} \
+            --index {output.salmon_index} \
+            --gencode
+        """
+
 rule salmon_quant:
     """Psuedoalign sequences using Salmon. MUCH faster than STAR and 
     I"m not convinced that STAR is any better at the alignment.
@@ -166,16 +229,16 @@ rule salmon_quant:
         fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
         fq2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
     output:
-        quant=RESULTS_DIR+"/salmon/{sample}/quant.sf"
-        dir=directory(RESULTS_DIR+"/salmon/{sample}/")
+        quant=RESULTS_DIR+"/salmon/{sample}/quant.sf",
     params:
         index=SALMON_INDEX,
         threads=THREADS,
+        outdir=directory(RESULTS_DIR+"/salmon/{sample}/")
     log:
         LOG_DIR+"/salmon/salmon_{sample}.log"
     singularity:
         "docker://combinelab/salmon:1.0.0"
-    version: 2.0
+    version: 3.0
     shell:
         """
         salmon quant \
@@ -187,7 +250,7 @@ rule salmon_quant:
             --validateMappings \
             --mates1 {input.fq1} \
             --mates2 {input.fq2} \
-            --output {output.dir}
+            --output {params.outdir}
         """
 
 rule salmon_quant_all:
@@ -205,8 +268,8 @@ rule run_salmon_multiqc:
         ]),
         fastqc_results=set([path.dirname(j)
                             for j
-                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES),
-        ])
+                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES)
+        ]),
         contam=set([path.dirname(k)
                     for k
                     in expand(LOG_DIR+"/trimmed/contam_{sample}.csv",sample = SAMPLES)
@@ -214,7 +277,7 @@ rule run_salmon_multiqc:
     output:
         LOG_DIR+"/multiqc_salmon_align_report.html"
     params:
-        outdir=LOG_DIR
+        outdir=LOG_DIR,
         reportname="/multiqc_salmon_align_report.html"
     singularity:
         "docker://ewels/multiqc:1.7"
@@ -338,7 +401,7 @@ rule run_star_stringtie_multiqc:
         ]),
         fastqc_results=set([path.dirname(j)
                             for j
-                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES),
+                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES)
         ]),
         contamination=set([path.dirname(k)
                            for k
@@ -352,7 +415,7 @@ rule run_star_stringtie_multiqc:
     output:
         LOG_DIR+"/multiqc_star_stringtie_align_report.html"
     params:
-        outdir=LOG_DIR
+        outdir=LOG_DIR,
         reportname="/multiqc_star_stringtie_align_report.html"
     singularity:
         "docker://ewels/multiqc:1.7"
@@ -415,7 +478,7 @@ rule run_star_with_featureCounts_qc:
         ]),
         fastqc_results=set([path.dirname(j)
                             for j
-                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES),
+                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES)
         ]),
         contamination=set([path.dirname(k)
                            for k
@@ -426,7 +489,7 @@ rule run_star_with_featureCounts_qc:
     output:
         LOG_DIR+"/multiqc_star_featureCounts_align_report.html"
     params:
-        outdir=LOG_DIR
+        outdir=LOG_DIR,
         reportname="/multiqc_star_featureCounts_align_report.html"
     singularity:
         "docker://ewels/multiqc:1.7"
@@ -517,7 +580,7 @@ rule run_rsem_multiqc:
         ]),
         fastqc_results=set([path.dirname(j)
                             for j
-                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES),
+                            in expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES)
         ]),
         contamination=set([path.dirname(k)
                            for k
@@ -532,7 +595,7 @@ rule run_rsem_multiqc:
     output:
         LOG_DIR+"/multiqc_rsem_report.html"
     params:
-        outdir=LOG_DIR
+        outdir=LOG_DIR,
         reportname="/multiqc_rsem_report.html"
     singularity:
         "docker://ewels/multiqc:1.7"
