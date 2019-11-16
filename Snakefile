@@ -31,10 +31,10 @@ GTF = SEQUENCES + config["GTF"]
 FASTA = SEQUENCES + config["FASTA"]
 
 INDICES = SPECIES + config["INDICES"]
-STAR_INDEX = SEQUENCES + config["STAR_INDEX"]
-SALMON_INDEX = SEQUENCES + config["SALMON_INDEX"]
-SUBREAD_INDEX = SEQUENCES + config["SUBREAD_INDEX"]
-RSEM_INDEX = SEQUENCES + config["RSEM_INDEX"]
+STAR_INDEX = INDICES + config["STAR_INDEX"]
+SALMON_INDEX = INDICES + config["SALMON_INDEX"]
+SUBREAD_INDEX = INDICES + config["SUBREAD_INDEX"]
+RSEM_INDEX = INDICES + config["RSEM_INDEX"]
 
 MISCELLANEOUS = REFERENCES + config["MISCELLANEOUS"]
 POLY_A = MISCELLANEOUS + config["POLY_A"]
@@ -209,7 +209,7 @@ rule build_salmon_index:
         decoys=SEQUENCES+"/"+TRANSCRIPTOME_NAME+".decoys.txt",
         gentrome=SEQUENCES+"/"+TRANSCRIPTOME_NAME+".gentrome.fa.gz"
     output:
-        salmon_index=dir(SALMON_INDEX)
+        salmon_index=directory(SALMON_INDEX)
     threads:
         THREADS
     log: LOGS+"/salmon_index"
@@ -238,7 +238,7 @@ rule salmon_quant:
     output:
         quant=RESULTS+"/salmon/{sample}/quant.sf",
     params:
-        index=SALMON_INDEX,
+        index=directory(SALMON_INDEX),
         threads=THREADS,
         outdir=directory(RESULTS+"/salmon/{sample}/")
     log:
