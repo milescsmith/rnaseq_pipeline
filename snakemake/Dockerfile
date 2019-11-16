@@ -6,6 +6,10 @@ LABEL maintainer="Miles Smith <miles-smith@omrf.org>"
 LABEL description="Container for running dockerized Snakemake scripts"
 
 RUN apk add --no-cache --virtual=.build-dependencies \
+        bash \
+        grep \
+        sed \
+        curl \
         docker \
         python3 \
         python3-dev \
