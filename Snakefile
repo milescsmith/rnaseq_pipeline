@@ -132,6 +132,8 @@ rule perfom_trimming:
         wasteR2=RESULTS+"/trimmed/removed_{sample}.R2.fq.gz",
         # to collect metrics on how many ribosomal reads were eliminated
         contam=LOGS+"/trimmed/contam_{sample}.csv"
+    threads:
+        THREADS
     singularity:
         "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/bbmap:38.72"
     version: 2.1
@@ -153,7 +155,8 @@ rule perfom_trimming:
             mink=5 \
             qtrim=r \
             trimq=10 \
-            minlength=20
+            minlength=20 \
+            threads={threads}
         """
 
 rule expand_trimming:
