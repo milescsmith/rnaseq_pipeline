@@ -51,7 +51,7 @@ GENOME_VERSION = GENOME.split("/")[-1]
 
 USER = environ.get("USER")
 
-THREADS = 16
+THREADS = 8
 
 # Find the fastq files to be processed
 SAMPLES = glob.glob(f"{RAW_DATA}**/*.fastq.gz",
@@ -67,8 +67,8 @@ SAMPLES = [_.split("/")[-1]
            in SAMPLES]
 
 # Testing code, used when Snakemake seems unable to find the files.
-# print(RAW_DATA)
-# print(SAMPLES[0])
+print(RAW_DATA)
+print(SAMPLES[0])
 
 rule run_all:
     input:
@@ -214,7 +214,7 @@ rule build_salmon_index:
         THREADS
     log: LOGS+"/salmon_index"
     singularity:
-        "docker://combinelab/salmon:1.0.0"
+        "docker://registry.gitlab.com/guthridge_informatics/salmon:1.1.0"
     version: 1.0
     shell:
         """
@@ -236,11 +236,11 @@ rule salmon_quant:
         fq1=RESULTS+"/trimmed/{sample}.R1.fq.gz",
         fq2=RESULTS+"/trimmed/{sample}.R2.fq.gz",
     output:
-        quant=RESULTS+"/salmon/{sample}/quant.sf",
+        quant=RESULTS+"/viral_salmon/{sample}/quant.sf",
     params:
         index=directory(SALMON_INDEX),
         threads=THREADS,
-        outdir=directory(RESULTS+"/salmon/{sample}/")
+        outdir=directory(RESULTS+"/viral_salmon/{sample}/")
     log:
         LOGS+"/salmon/salmon_{sample}.log"
     singularity:
@@ -264,7 +264,7 @@ rule salmon_quant_all:
     """Target rule to force alignement of all the samples. If aligning 
     with Salmon, use this as the target run since Salmon typically does 
     not make the bam files needed below."""
-    input: expand(RESULTS+"/salmon/{sample}/quant.sf", sample=SAMPLES)
+    input: expand(RESULTS+"/viral_salmon/{sample}/quant.sf", sample=SAMPLES)
     version: 1.0
 
 rule run_salmon_multiqc:
@@ -308,9 +308,9 @@ rule salmon_with_qc:
 
 rule compress_salmon_results:
     input:
-        quant=RESULTS+"/salmon/{sample}/quant.sf",
-        summarized_qc=LOGS+"/multiqc_salmon_align_report.html"
-    output: RESULTS+"/salmon/{sample}/quant.sf.gz"
+        quant=RESULTS+"/viral_salmon/{sample}/quant.sf",
+        #summarized_qc=LOGS+"/multiqc_salmon_align_report.html"
+    output: RESULTS+"/viral_salmon/{sample}/quant.sf.gz"
     params:
         threads=THREADS
     version: 1.0
@@ -323,7 +323,7 @@ rule compress_salmon_results:
         """
 
 rule can_fish:
-    input: expand(RESULTS+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES)
+    input: expand(RESULTS+"/viral_salmon/{sample}/quant.sf.gz", sample=SAMPLES)
 
 rule star_align:
     input:
