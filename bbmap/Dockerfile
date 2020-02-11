@@ -1,19 +1,20 @@
-FROM ubuntu:18.04
+FROM gliderlabs/alpine:3.9
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    openjdk-11-jre \
-    wget \
-    && apt-get clean \
-    && rm -rf /tmp/downloaded_packages/ /tmp/*.rds \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk --no-cache --update-cache -U add tzdata && \
+    cp /usr/share/zoneinfo/America/Chicago /etc/localtime && \
+    apk --no-cache --update-cache add \
+        bash \
+        curl \
+        openjdk8 && \
+     rm -rf /var/cache/apk/*
 
-WORKDIR /root
-RUN wget -O BBMap.tar.gz https://sourceforge.net/projects/bbmap/files/BBMap_38.42.tar.gz/download && \
+WORKDIR /opt
+
+RUN curl -L https://downloads.sourceforge.net/project/bbmap/BBMap_38.72.tar.gz -o BBMap.tar.gz && \
     tar xzf BBMap.tar.gz && \
     mv bbmap /usr/local && \
     rm -rf BBMap.tar.gz
 
 ENV PATH="/usr/local/bbmap:${PATH}"
 
-CMD ["bbduk.sh"]
+CMD ["bash", "bbduk.sh"]
