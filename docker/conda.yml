@@ -1,0 +1,12 @@
+name: rnaseq-pipeline-nf
+channels:
+  - defaults
+  - bioconda
+  - conda-forge
+dependencies:
+  - salmon=1.0.0
+  - fastqc=0.11.8
+  - multiqc=1.7
+  - bbmap=38.72
+  - star=2.7.3a
+  - 
