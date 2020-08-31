@@ -2,7 +2,7 @@ PROJECT:
   /s/guth-aci/novaseq/dockerized_test
 RAW_DATA:
   /data/raw_data/fastqs
-  RESULTS:
+RESULTS:
   /data/results
 LOGS:
   /logs
