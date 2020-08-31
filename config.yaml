@@ -2,7 +2,7 @@ PROJECT:
   /s/guth-aci/novaseq/dockerized_test
 RAW_DATA:
   /data/raw_data/fastqs
-RESULTS:
+  RESULTS:
   /data/results
 LOGS:
   /logs
@@ -11,7 +11,7 @@ REFERENCES:
 GENOMIC_FILES:
   /genomic
 SPECIES:
-  /homo_sapiens
+  /chimeras
 SEQUENCES:
   /sequences
 GTF:
@@ -23,7 +23,7 @@ INDICES:
 STAR_INDEX:
   /star/gencode_v32
 SALMON_INDEX:
-  /salmon/gencode_v32
+  /salmon/gencode_v32_with_viruses_v1.2
 SUBREAD_INDEX:
   /chimeras/indices/subread/
 RSEM_INDEX:

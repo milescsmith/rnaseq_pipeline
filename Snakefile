@@ -51,7 +51,7 @@ GENOME_VERSION = GENOME.split("/")[-1]
 
 USER = environ.get("USER")
 
-THREADS = 16
+THREADS = 8
 
 # Find the fastq files to be processed
 SAMPLES = glob.glob(f"{RAW_DATA}**/*.fastq.gz",
@@ -309,7 +309,7 @@ rule salmon_with_qc:
 rule compress_salmon_results:
     input:
         quant=RESULTS+"/salmon/{sample}/quant.sf",
-        summarized_qc=LOGS+"/multiqc_salmon_align_report.html"
+        #summarized_qc=LOGS+"/multiqc_salmon_align_report.html"
     output: RESULTS+"/salmon/{sample}/quant.sf.gz"
     params:
         threads=THREADS
