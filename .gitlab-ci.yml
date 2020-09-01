@@ -23,8 +23,7 @@ fastqc:
         IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
         IMAGE_VERSION: "0.11.9"
     script:
-        #- docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest proxy
-        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest fastqc
+        - docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest fastqc
         - docker push $IMAGE_NAME:$IMAGE_VERSION
         - docker push $IMAGE_NAME:latest
 
@@ -34,7 +33,7 @@ star :
         IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
         IMAGE_VERSION: "2.7.5c"
     script:
-        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest STAR
+        - docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest STAR
         - docker push $IMAGE_NAME:$IMAGE_VERSION
         - docker push $IMAGE_NAME:latest
 
@@ -44,7 +43,7 @@ bbmap:
         IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
         IMAGE_VERSION: "38.86"
     script:
-        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest bbmap
+        - docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest bbmap
         - docker push $IMAGE_NAME:$IMAGE_VERSION
         - docker push $IMAGE_NAME:latest
 
@@ -54,7 +53,7 @@ subread:
         IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
         IMAGE_VERSION: "2.0.1"
     script:
-        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest subread
+        - docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest subread
         - docker push $IMAGE_NAME:$IMAGE_VERSION
         - docker push $IMAGE_NAME:latest
 
@@ -64,7 +63,7 @@ snakemake:
         IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
         IMAGE_VERSION: "5.23.0"
     script:
-        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest snakemake
+        - docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest snakemake
         - docker push $IMAGE_NAME:$IMAGE_VERSION
         - docker push $IMAGE_NAME:latest
 
@@ -74,6 +73,6 @@ salmon:
         IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
         IMAGE_VERSION: "1.3.0"
     script:
-        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest salmon
+        - docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest salmon
         - docker push $IMAGE_NAME:$IMAGE_VERSION
         - docker push $IMAGE_NAME:latest
