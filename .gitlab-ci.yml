@@ -1,0 +1,79 @@
+image: docker:latest
+stages: 
+    - build
+services:
+    - docker:dind
+variables:
+    DOCKER_DRIVER: "overlay"
+before_script:
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - export
+
+stages:
+    - build-fastqc
+    - build-star
+    - build-bbmap
+    - build-subread
+    - build-snakemake
+    - build-salmon
+
+fastqc:
+    stage: build-fastqc
+    variables:
+        IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
+        IMAGE_VERSION: "0.11.9"
+    script:
+        #- docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest proxy
+        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest fastqc
+        - docker push $IMAGE_NAME:$IMAGE_VERSION
+        - docker push $IMAGE_NAME:latest
+
+STAR:
+    stage: build-star
+    variables:
+        IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
+        IMAGE_VERSION: "2.7.5c"
+    script:
+        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest star
+        - docker push $IMAGE_NAME:$IMAGE_VERSION
+        - docker push $IMAGE_NAME:latest
+
+bbmap:
+    stage: build-bbmap
+    variables:
+        IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
+        IMAGE_VERSION: "38.86"
+    script:
+        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest bbmap
+        - docker push $IMAGE_NAME:$IMAGE_VERSION
+        - docker push $IMAGE_NAME:latest
+
+subread:
+    stage: build-subread
+    variables:
+        IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
+        IMAGE_VERSION: "2.0.1"
+    script:
+        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest subread
+        - docker push $IMAGE_NAME:$IMAGE_VERSION
+        - docker push $IMAGE_NAME:latest
+
+snakemake:
+    stage: build-snakemake
+    variables:
+        IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
+        IMAGE_VERSION: "5.23.0"
+    script:
+        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest snakemake
+        - docker push $IMAGE_NAME:$IMAGE_VERSION
+        - docker push $IMAGE_NAME:latest
+
+salmon:
+    stage: build-salmon
+    variables:
+        IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
+        IMAGE_VERSION: "1.3.0"
+    script:
+        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest salmon
+        - docker push $IMAGE_NAME:$IMAGE_VERSION
+        - docker push $IMAGE_NAME:latest

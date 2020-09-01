@@ -93,7 +93,7 @@ rule initial_qc:
         LOGS+"/fastqc/fastqc_{sample}.log"
     threads:
         THREADS
-    version: 2.0
+    version: 2.1
     shell:
         """
         mkdir -p {params.outdir} && \
@@ -110,7 +110,7 @@ rule initial_qc_all:
     input:
         expand(RESULTS+"/qc/{sample}/{sample}_fastqc.html", 
                sample=SAMPLES)
-    version: 2.0
+    version: 2.1
 
 rule perfom_trimming:
     """Use BBmap to trim known adaptors, low quality reads, 
@@ -217,8 +217,8 @@ rule build_salmon_index:
         THREADS
     log: LOGS+"/salmon_index"
     singularity:
-        "docker://combinelab/salmon:1.0.0"
-    version: 1.0
+        "docker://combinelab/salmon:1.3.0"
+    version: 1.1
     shell:
         """
         salmon \
@@ -247,8 +247,8 @@ rule salmon_quant:
     log:
         LOGS+"/salmon/salmon_{sample}.log"
     singularity:
-        "docker://combinelab/salmon:1.0.0"
-    version: 3.0
+        "docker://combinelab/salmon:1.3.0"
+    version: 3.1
     shell:
         """
         salmon quant \
@@ -268,7 +268,7 @@ rule salmon_quant_all:
     with Salmon, use this as the target run since Salmon typically does 
     not make the bam files needed below."""
     input: expand(RESULTS+"/salmon/{sample}/quant.sf", sample=SAMPLES)
-    version: 1.0
+    version: 1.1
 
 rule run_salmon_multiqc:
     input:
@@ -290,7 +290,7 @@ rule run_salmon_multiqc:
         outdir=LOGS,
         reportname="/multiqc_salmon_align_report.html"
     singularity:
-        "docker://ewels/multiqc:1.7"
+        "docker://ewels/multiqc:1.9"
     shell:
         """
         multiqc \
@@ -307,7 +307,7 @@ rule run_salmon_multiqc:
 
 rule salmon_with_qc:
     input: LOGS+"/multiqc_salmon_align_report.html"
-    version: 1.1
+    version: 1.2
 
 rule compress_salmon_results:
     input:
@@ -316,7 +316,7 @@ rule compress_salmon_results:
     output: RESULTS+"/salmon/{sample}/quant.sf.gz"
     params:
         threads=THREADS
-    version: 1.0
+    version: 1.1
     shell:
         """
         pigz \
@@ -341,7 +341,7 @@ rule star_align:
         outdir=RESULTS+"/star/{sample}/"
     threads: THREADS
     singularity:
-        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/star"
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/star:2.7.5c"
     shell:
     # The following options are based on the given ENCODE options
     # in the STAR manual
@@ -428,7 +428,7 @@ rule run_star_stringtie_multiqc:
         outdir=LOGS,
         reportname="/multiqc_star_stringtie_align_report.html"
     singularity:
-        "docker://ewels/multiqc:1.7"
+        "docker://ewels/multiqc:1.9"
     shell:
         """
         multiqc \
@@ -457,7 +457,7 @@ rule featureCounts:
     params:
         annotation = GTF
     singularity:
-        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/subread:2.0.0"
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/subread:2.0.1"
     shell:
         """
         featureCounts \

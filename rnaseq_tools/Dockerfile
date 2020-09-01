@@ -2,7 +2,7 @@ FROM quay.io/snakemake/snakemake:latest
 
 LABEL description="Tools to run an RNAseq QC and alignemtns processing Snakemake pipeline in Google Kubenetes Engine"
 LABEL tags="Genomics"
-MAINTAINER Miles Smith <miles-smith@omrf.org>
+LABEL author="Miles Smith <miles-smith@omrf.org>"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
