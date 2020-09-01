@@ -10,10 +10,10 @@ RUN apk --no-cache --update-cache -U add tzdata && \
 WORKDIR /opt
 
 RUN \
-    curl -L https://github.com/alexdobin/STAR/archive/2.7.3a.tar.gz -o 2.7.3a.tar.gz && \
-    tar -xzf 2.7.3a.tar.gz && \
-    mv STAR-2.7.3a/bin/Linux_x86_64_static/* /usr/local/bin && \
-    rm -fr 2.7.3a.tar.gz && \
-    rm -fr STAR-2.7.3a
+    curl -L https://github.com/alexdobin/STAR/archive/2.7.5c.tar.gz -o 2.7.5c.tar.gz && \
+    tar -xzf 2.7.5c.tar.gz && \
+    mv STAR-2.7.5c/bin/Linux_x86_64_static/* /usr/local/bin && \
+    rm -fr 2.7.5c.tar.gz && \
+    rm -fr STAR-2.7.5c
 
 CMD ["STAR", "--help"]
