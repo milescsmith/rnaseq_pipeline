@@ -10,7 +10,7 @@ RUN apk --no-cache --update-cache -U add tzdata && \
 
 WORKDIR /opt
 
-RUN curl -L https://downloads.sourceforge.net/project/bbmap/BBMap_38.72.tar.gz -o BBMap.tar.gz && \
+RUN curl -L https://downloads.sourceforge.net/project/bbmap/BBMap_38.86.tar.gz -o BBMap.tar.gz && \
     tar xzf BBMap.tar.gz && \
     mv bbmap /usr/local && \
     rm -rf BBMap.tar.gz
