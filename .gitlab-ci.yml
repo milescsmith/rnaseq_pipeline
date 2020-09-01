@@ -28,7 +28,7 @@ fastqc:
         - docker push $IMAGE_NAME:$IMAGE_VERSION
         - docker push $IMAGE_NAME:latest
 
-STAR:
+star :
     stage: build-star
     variables:
         IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
