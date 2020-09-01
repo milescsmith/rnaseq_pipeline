@@ -10,7 +10,7 @@ RUN apk --no-cache --update-cache -U add tzdata && \
 
 WORKDIR /opt
 
-RUN curl -L https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.8.zip -o fastqc.zip && \
+RUN curl -L https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.9.zip -o fastqc.zip && \
     unzip fastqc.zip && \
     chmod 750 FastQC/fastqc && \
     ln -s FastQC/fastqc /usr/local/bin/fastqc
