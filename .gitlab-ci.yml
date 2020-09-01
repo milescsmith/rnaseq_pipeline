@@ -15,7 +15,6 @@ stages:
     - build-bbmap
     - build-subread
     - build-snakemake
-    - build-salmon
 
 fastqc:
     stage: build-fastqc
@@ -64,15 +63,5 @@ snakemake:
         IMAGE_VERSION: "5.23.0"
     script:
         - docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest snakemake
-        - docker push $IMAGE_NAME:$IMAGE_VERSION
-        - docker push $IMAGE_NAME:latest
-
-salmon:
-    stage: build-salmon
-    variables:
-        IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
-        IMAGE_VERSION: "1.3.0"
-    script:
-        - docker build --pull --cache-from $IMAGE_NAME:latest -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest salmon
         - docker push $IMAGE_NAME:$IMAGE_VERSION
         - docker push $IMAGE_NAME:latest
