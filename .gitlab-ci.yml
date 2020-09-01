@@ -34,7 +34,7 @@ star :
         IMAGE_NAME: $CI_REGISTRY_IMAGE/$CI_BUILD_NAME
         IMAGE_VERSION: "2.7.5c"
     script:
-        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest star
+        - docker build --pull -t $IMAGE_NAME:$IMAGE_VERSION -t $IMAGE_NAME:latest STAR
         - docker push $IMAGE_NAME:$IMAGE_VERSION
         - docker push $IMAGE_NAME:latest
 
