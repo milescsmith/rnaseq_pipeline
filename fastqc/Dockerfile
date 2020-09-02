@@ -1,16 +1,20 @@
-FROM gliderlabs/alpine:3.9
+FROM ubuntu:bionic
 
-RUN apk --no-cache --update-cache -U add tzdata && \
-    cp /usr/share/zoneinfo/America/Chicago /etc/localtime && \
-    apk --no-cache --update-cache add \
-        curl \
-        openjdk8 \
-        perl && \
-     rm -rf /var/cache/apk/*
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update --fix-missing && \
+   apt install --no-install-recommends -y \
+      curl \
+      openjdk-11-jdk \
+      openjdk-11-jre \
+      perl \
+      unzip && \
+   apt-get clean && \
+   rm -rf /tmp/downloaded_packages/* && \
+   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
 
-RUN curl -L https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.8.zip -o fastqc.zip && \
+RUN curl -L https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.9.zip -o fastqc.zip && \
     unzip fastqc.zip && \
     chmod 750 FastQC/fastqc && \
     ln -s FastQC/fastqc /usr/local/bin/fastqc
