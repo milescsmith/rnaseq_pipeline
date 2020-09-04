@@ -1,7 +1,7 @@
 PROJECT:
-  /s/guth-aci/novaseq/dockerized_test
+  /s/guth-aci/narch_advanta_sequencing
 RAW_DATA:
-  /data/raw_data/fastqs
+  /data/raw_data/fastqs_advanta/advanta
 RESULTS:
   /data/results
 LOGS:

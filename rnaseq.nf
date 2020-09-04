@@ -1,447 +1,267 @@
-"""
-Author: Miles Smith
-Affiliation: OMRF
-Aim: Nextflow pipeline to process HyperPrep RNA-Seq data
-Date: 2019/11/06
-"""
-version: 2.2
+#!/usr/bin/env nextflow
+/*
+ * Copyright (c) 2020, Oklahoma Medical Research Foundation (OMRF).
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * This Source Code Form is "Incompatible With Secondary Licenses", as
+ * defined by the Mozilla Public License, v. 2.0.
+ *
+ */
 
-# Read in the values from the configuration file and build up the locations
-# of files required in the pipeline
-params.reads_pattern    = "*_S*_L00*_R{1,2}_00*.fastq.gz"
+// Nextflow pipeline for processing PacBio IsoSeq runs
+// Author: Miles Smith <miles-smith@omrf.org>
+// Date: 2020/09/04
+// Version: 0.1.0
 
-params.base                      = ""
-params.source                    = "${params.base}"
-params.project                   = "${params.source}"
-params.raw_data                  = "${params.project}/data/raw_data"
-params.results                   = "${params.project}/data/results"
-params.logs                      = "${params.project}/logs"
-params.refs                      = "${params.base}/reference"
-params.sequences                 = "${params.refs}/sequences"
-params.indices                   = "${params.refs}/indices"
-params.miscellaneous             = "${params.bucket}/references/miscellaneous"
+// File locations and program parameters
 
-params.gtf                      = "${params.sequences}/gencode.v32.primary_assembly.annotation.gtf"
-params.fasta                    = "${params.sequences}/GRCh38.primary_assembly.genome.fa"
-params.star_index               = "${params.indices}" sequences_dir + config["star_index"]
-params.salmon_index             = "${params.indices}/ensembl97"
-params.subread_index            = "${params.indices}" sequences_dir + config["subread_index"]
+def helpMessage() {
+    log.info nfcoreHeader()
+    log.info """
+    Usage:
 
-params.truseq_rna               = "${params.miscellaneous_sequences}/truseq.fa.gz"
-params.poly_a                   = "${params.miscellaneous_sequences}/polyA.fa.gz"
-params.truseq_adapter           = "${params.miscellaneous_sequences}/truseq.fa.gz"
-params.truseq_rna_adapter       = "${params.miscellaneous_sequences}/truseq_rna.fa.gz"
-params.rRNAs                    = "${params.miscellaneous_sequences}/human_ribosomal.fa"
+      The typical command for running the pipeline is as follows:
+ 
+      nextflow run milescsmith/nf-rnaseq \\
+        --project /path/to/project \\
+        --profile slurm
 
-params.reads                    = "${params.raw_data}/${params.reads_pattern}"
+    Mandatory arguments:
+      --project             Directory to use as a base where raw files are 
+                            located and results and logs will be written
+      --profile             Configuration profile to use for processing.
+                            Available: slurm, gcp, standard
+      
+    Optional parameters:
 
+    Reference locations:
+      --species             By default, uses "chimera" for a mixed human/viral
+                            index.
+      --genome
+      --truseq_adapter
+      --truseq_rna_adapter
+      --rRNAs
+      --polyA
+      --salmon_index
+    
+    Results locations:      If not specified, these will be created relative to
+                            the `project` argument
+                            Note: if undefined, the pipeline expects the raw BAM
+                            file to be located in `/path/to/project/01_raw`
+      --logs                Default: project/logs
+      --raw_data            Default: project/data/raw_data
+      --bcls                Default: project/data/raw_data/bcls
+      --raw_fastqs          Default: project/data/raw_data/fastqs
+      --results             Default: project/data/raw_data/data/results
+      --qc                  Default: project/data/raw_data/data/results/qc
+      --trimmed             Default: project/data/raw_data/data/results/trimmed
+      --aligned             Default: project/data/raw_data/data/results/aligned
 
-THREADS = 16
+    Other:
+      --help                Show this message
+    """.stripIndent()
+}
 
-# Find the fastq files to be processed
-SAMPLES = glob.glob(f"{RAW_DATA_DIR}**/*.fastq.gz",
-                    recursive=True)
-SAMPLES = [sample.replace(f"{RAW_DATA_DIR}/","").replace(".fastq.gz","") 
-           for sample
-           in SAMPLES]
-SAMPLES = [("_").join(sample.split("_")[:-2])
-           for sample
-           in SAMPLES]
-SAMPLES = [_.split("/")[-1]
-           for _
-           in SAMPLES]
+// Show help message
+if (params.help) {
+    helpMessage()
+    exit 0
+}
 
-# Testing code, used when Snakemake seems unable to find the files.
-# print(RAW_DATA_DIR)
-# print(SAMPLES[0])
+params.input = "${params.fastq}/*_S*_L00*_R{1,2}_00*.fastq.gz"
 
-rule run_all:
+Channel
+    .fromFilePairs( params.reads, checkIfExists: true, flat: true )
+    .into{ raw_fastq_fastqc_reads_ch; raw_fastq_to_trim_ch }
+
+Channel
+    .fromPath( params.polyA, checkIfExists: true)
+    .set{ polyA_ref }
+
+Channel
+    .fromPath( params.truseq_adapter, checkIfExists: true)
+    .set{ truseq_adapter_ref }
+
+Channel
+    .fromPath( params.truseq_rna_adapter, checkIfExists: true)
+    .set{ truseq_rna_adapter_ref }
+
+Channel
+    .fromPath( params.rRNAs, checkIfExists: true)
+    .set{ rRNA_ref }
+
+process initial_qc {
+    //Use Fastqc to examine fastq quality
+    
+    tag "FastQC"
+    container "registry.gitlab.com/milothepsychic/rnaseq_pipeline/fastqc:0.11.9"
+    queue "highmem"
+    
+    publishDir "${params.qc}/${sample_id}", mode: "copy", pattern: "*.html", overwrite: true
+    publishDir "${params.qc}/${sample_id}", mode: "copy", pattern: "*.zip", overwrite: true
+    
     input:
-        # kallisto=LOG_DIR+"/multiqc_kallisto_align_report.html",
-        salmon=expand(RESULTS_DIR+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES),
-        star_with_stringtie=LOG_DIR+"/multiqc_star_stringtie_align_report.html",
-        star_with_featureCounts=LOG_DIR+"/multiqc_star_featureCounts_align_report.html"
+        tuple val(sample_id), file(read1), file(read2) from raw_fastq_fastqc_reads_ch
 
-rule initial_qc:
-    """Use Fastqc to examine the quality of the fastqs from the CGC."""
-    input:
-        R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
-        R2=RAW_DATA_DIR+"/{sample}_R2_001.fastq.gz"
-    params:
-        threads=f"--threads {THREADS}",
-        #outdir=RESULTS_DIR+"/qc/{sample}"
     output:
-        html=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
-        zip=RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.zip"
-    # singularity:
-    #     "docker://milescsmith/fastqc"
-    log:
-        LOG_DIR+"/fastqc/fastqc_{sample}.log"
-    version: 1.3
-    wrapper:
-        "0.38.0/bio/fastqc"
+         file "*.html" into fastqc_results_ch
+    
+    script:
+        """
+        fastqc \
+            --noextract \
+            --format fastq \
+            --threads ${task.cpus} \
+            ${read1} ${read2}
+        """
+}
 
-rule initial_qc_all:
-    """Target rule to run just the inital Fastqc"""
+process perfom_trimming {
+    /* Use BBmap to trim known adaptors, low quality reads, and
+       polyadenylated sequences and filter out ribosomal reads */
+    
+    tag "trim"
+    container "registry.gitlab.com/milothepsychic/rnaseq_pipeline/bbmap:38.86"
+    queue "highmem"
+    
     input:
-        expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html", 
-               sample=SAMPLES)
-    version: 2.0
+        tuple val(sample_id), file(read1), file(read2) from raw_fastq_to_trim_ch
+        file polyA from polyA_ref
+        file truseq_adapter from truseq_adapter_ref
+        file truseq_rna_adapter from truseq_rna_adapter_ref
+        file rRNAs from rRNA_ref
 
-rule perfom_trimming:
-    """Use BBmap to trim known adaptors, low quality reads, 
-    and polyadenylated sequences and filter out ribosomal reads"""
-    input:
-        R1=RAW_DATA_DIR+"/{sample}_R1_001.fastq.gz",
-        R2=RAW_DATA_DIR+"/{sample}_R2_001.fastq.gz",
-    params:
-        out_dir="trimmed",
-        phred_cutoff=5,
-        polyA_ref=POLY_A,
-        truseq_rna_adapter_ref=TRUSEQ_RNA,
-        truseq_adapter_ref=TRUSEQ,
-        rRNA_ref=RRNAREF
     output:
-        filteredR1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        filteredR2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
-        wasteR1=RESULTS_DIR+"/trimmed/removed_{sample}.R1.fq.gz",
-        wasteR2=RESULTS_DIR+"/trimmed/removed_{sample}.R2.fq.gz",
-        # to collect metrics on how many ribosomal reads were eliminated
-        contam=LOG_DIR+"/trimmed/contam_{sample}.csv"
-    #singularity:
-    #    "docker://milescsmith/bbmap"
-    version: 2.1
-    shell:
-        """
-        bbduk.sh \
-                in={input.R1} \
-                in2={input.R2} \
-                outu={output.filteredR1} \
-                out2={output.filteredR2} \
-                outm={output.wasteR1} \
-                outm2={output.wasteR2} \
-                ref={params.polyA_ref},{params.truseq_adapter_ref},{params.truseq_rna_adapter_ref},{params.rRNA_ref} \
-                stats={output.contam} \
-                statscolumns=3 \
-                k=13 \
-                ktrim=r \
-                useshortkmers=t \
-                mink=5 \
-                qtrim=r \
-                trimq=10 \
-                minlength=20
-        """
+        file "*.trimmed.R1.fq.gz" into trimmed_read1_ch
+        file "*.trimmed.R2.fq.gz" into trimmed_read2_ch
+        val sample_id into trimmed_sample_name_ch
+        file "*.csv" into contamination_ch
+    
+    script:
+    """
+    bbduk.sh \
+        in=${read1} \
+        in2=${read2} \
+        outu=${sample_id}.trimmed.R1.fq.gz \
+        out2=${sample_id}.trimmed.R2.fq.gz \
+        outm=removed_${sample_id}.R1.fq.gz \
+        outm2=removed_${sample_id}.R2.fq.gz \
+        ref=${polyA},${truseq_adapter},${truseq_rna_adapter},${rRNAs} \
+        stats=contam_${sample_id}.csv \
+        statscolumns=3 \
+        k=13 \
+        ktrim=r \
+        useshortkmers=t \
+        mink=5 \
+        qtrim=r \
+        trimq=10 \
+        minlength=20
+    """
+}
 
-rule expand_trimming:
-    input:
-        R1=expand(RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-                  sample = SAMPLES),
-        R2=expand(RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
-                  sample = SAMPLES),
-        wasteR1=expand(RESULTS_DIR+"/trimmed/removed_{sample}.R1.fq.gz",
-                       sample = SAMPLES),
-        wasteR2=expand(RESULTS_DIR+"/trimmed/removed_{sample}.R2.fq.gz",
-                       sample = SAMPLES),
-        contam=expand(LOG_DIR+"/contam_{sample}.csv",
-                      sample = SAMPLES)
+process salmon_quant {
+    tag "salmon quant"
+    container "docker://combinelab/salmon:1.3.0"
 
-rule kallisto_quant:
-    """Psuedoalign sequences using Kallisto. MUCH faster than STAR and 
-    I"m not convinced that STAR is any better at the alignment."""
     input:
-        fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        fq2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
-        GTF=GTF
+        val sample_id from trimmed_sample_name_ch
+        file trimmed_read1 from trimmed_read1_ch
+        file trimmed_read2 from trimmed_read2_ch
+
     output:
-        RESULTS_DIR+"/kallisto/{sample}/abundance.h5",
-        RESULTS_DIR+"/kallisto/{sample}/abundance.tsv",
-        RESULTS_DIR+"/kallisto/{sample}/run_info.json"
-    params:
-        index=KALLISTO_INDEX,
-        threads=THREADS,
-        out_dir=RESULTS_DIR+"/kallisto/{sample}/"
-    log:
-        LOG_DIR+"/kallisto/kallisto_{sample}.log"
-    #singularity:
-    #    "docker://milescsmith/kallisto"
-    version: 1.2
-    shell:
-        """
-        kallisto quant -t {params.threads} \
-            -o {params.out_dir} \
-            -i {params.index} \
-            --rf-stranded \
-            --bootstrap-samples=12 \
-            --gtf {input.GTF} \
-            --bias {input.fq1} {input.fq2}
-        """
-rule kallisto_quant_all:
-    """Target rule to force alignement of all the samples. If aligning 
-    with Kallisto, use this as the target run since Kallisto typically does 
-    not make the bam files needed below."""
-    input: expand(RESULTS_DIR+"kallisto/{sample}/abundance.h5", sample=SAMPLES)
+        file "${sample_id}/quant.sf" into pseudoquant_ch, pseudoquant_to_compress_ch
+        file "${sample_id}/logs/salmon_quant.log" into pseudoquant_log_ch
+        val sample_name into pseudoquant_name
 
-rule run_kallisto_multiqc:
+    script:
+    """
+    salmon quant \
+        --libType A \
+        --threads ${task.cpus} \
+        --index ${params.salmon_index} \
+        --seqBias \
+        --gcBias \
+        --validateMappings \
+        --mates1 ${trimmed_read1} \
+        --mates2 ${trimmed_read2} \
+        --output ${sample_id} \
+    """
+}
+
+process multiqc {
+    /* collect all qc metric into one report */
+    
+    tag "multiqc"
+    container "docker://ewels/multiqc:1.9"
+    
+    publishDir "{params.qc}", mode: "copy", pattern: "multiqc_report.html", overwrite: true
+    
     input:
-        kallisto_results = expand(RESULTS_DIR+"/kallisto/{sample}/abundance.h5", sample=SAMPLES),
-        log_files = LOG_DIR
+        file alignment_results from pseudoquant_ch.collect()
+        file fastqc_results from fastqc_results_ch.collect()
+        file contam from contamination_ch.collect()
+        file pseudoquant_log from pseudoquant_log_ch.collect()
+    
     output:
-        LOG_DIR+"/multiqc_kallisto_align_report.html"
-    params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m kallisto",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
+        file "/multiqc_report.html" into multiqc_ch
+    
+    script:
+    """
+    multiqc \
+        -m fastqc \
+        -m bbmap \
+        -m salmon \
+        -ip \
+        ${alignment_results} \
+        ${fastqc_results} \
+        ${contam} \
+    """
+}
 
-rule kallisto_with_qc:
-    input: LOG_DIR+"/multiqc_kallisto_align_report.html"
-    version: 1.2
+process compress_salmon_results {
+    /* No reason not to compress these results since tximport
+       can read gzipped files */
+    
+    tag "compress results"
+    container "registry.gitlab.com/milothepsychic/rnaseq_pipeline/pigz:2.4"
 
-rule salmon_quant:
-    """Psuedoalign sequences using Salmon. MUCH faster than STAR and 
-    I"m not convinced that STAR is any better at the alignment.
-    Also, Salmon results are easier to translate into gene-level counts than 
-    Kallisto."""
+    publishDir "${params.aligned}", mode: "copy", pattern: "*.quant.sf.gz", overwrite: false
+
     input:
-        fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        fq2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
+        file quant from pseudoquant_to_compress_ch
+        val sample_id from pseudoquant_name
+        
     output:
-        RESULTS_DIR+"/salmon/{sample}/quant.sf"
-    params:
-        index=SALMON_INDEX,
-        threads=THREADS,
-        out_dir=RESULTS_DIR+"/salmon/{sample}/"
-    log:
-        LOG_DIR+"/salmon/salmon_{sample}.log"
-    version: 2.0
-    shell:
-        """
-        salmon quant \
-            --libType A \
-            --threads {params.threads} \
-            --index {params.index} \
-            --seqBias \
-            --gcBias \
-            --validateMappings \
-            --mates1 {input.fq1} \
-            --mates2 {input.fq2} \
-            --output {params.out_dir} \
-        """
+        file("${sample_id}/quant.sf.gz")
+    
+    script:
+    """
+    pigz -v -p ${task.cpus} ${sample_id}/${quant}
+    """
+}
 
-rule salmon_quant_all:
-    """Target rule to force alignement of all the samples. If aligning 
-    with Salmon, use this as the target run since Salmon typically does 
-    not make the bam files needed below."""
-    input: expand(RESULTS_DIR+"/salmon/{sample}/quant.sf", sample=SAMPLES)
-    version: 1.0
+def nfcoreHeader() {
+    // Log colors ANSI codes
+    c_reset = params.monochrome_logs ? '' : "\033[0m";
+    c_dim = params.monochrome_logs ? '' : "\033[2m";
+    c_black = params.monochrome_logs ? '' : "\033[0;30m";
+    c_green = params.monochrome_logs ? '' : "\033[0;32m";
+    c_yellow = params.monochrome_logs ? '' : "\033[0;33m";
+    c_blue = params.monochrome_logs ? '' : "\033[0;34m";
+    c_purple = params.monochrome_logs ? '' : "\033[0;35m";
+    c_cyan = params.monochrome_logs ? '' : "\033[0;36m";
+    c_white = params.monochrome_logs ? '' : "\033[0;37m";
 
-rule run_salmon_multiqc:
-    input:
-        alignment_results=expand(RESULTS_DIR+"/salmon/{sample}/quant.sf",
-                                   sample=SAMPLES),
-        fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html", 
-                                sample=SAMPLES),
-        contam=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
-                      sample = SAMPLES)
-    output:
-        LOG_DIR+"/multiqc_salmon_align_report.html"
-    params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m salmon",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
-
-rule salmon_with_qc:
-    input: LOG_DIR+"/multiqc_salmon_align_report.html"
-    version: 1.1
-
-rule compress_salmon_results:
-    input:
-        quant=RESULTS_DIR+"/salmon/{sample}/quant.sf",
-        summarized_qc=LOG_DIR+"/multiqc_salmon_align_report.html"
-    output: RESULTS_DIR+"/salmon/{sample}/quant.sf.gz"
-    params:
-        threads=THREADS
-    version: 1.0
-    shell:
-        """
-        pigz -v -p {params.threads} {input.quant}
-        """
-
-rule can_fish:
-    input: expand(RESULTS_DIR+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES)
-
-rule star_align:
-    input:
-        fq1=RESULTS_DIR+"/trimmed/{sample}.R1.fq.gz",
-        fq2=RESULTS_DIR+"/trimmed/{sample}.R2.fq.gz",
-    output:
-        RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam"
-    log:
-        LOG_DIR+"/star/{sample}.log"
-    params:
-        threads=THREADS,
-        index=STAR_INDEX,
-        outdir=RESULTS_DIR+"/star/{sample}/"
-    threads: THREADS
-    shell:
-    # The following options are based on the given ENCODE options
-    # in the STAR manual
-        """
-        STAR \
-            --outFilterType BySJout \
-            --outFilterMultimapNmax 20 \
-            --alignSJoverhangMin 8 \
-            --alignSJDBoverhangMin 1 \
-            --outFilterMismatchNmax 999 \
-            --outFilterMismatchNoverReadLmax 0.04 \
-            --alignIntronMin 20 \
-            --alignIntronMax 1000000 \
-            --alignMatesGapMax 1000000 \
-            --genomeDir {params.index} \
-            --quantMode GeneCounts \
-            --outFileNamePrefix {params.outdir} \
-            --outSAMtype BAM SortedByCoordinate \
-            --readFilesIn {input.fq1} {input.fq2}\
-            --readFilesCommand gunzip -c \
-            --runThreadN {threads}
-        """
-
-rule rename_star_results:
-    input: RESULTS_DIR+"/star/{sample}/Aligned.sortedByCoord.out.bam"
-    output: RESULTS_DIR+"/star/{sample}.bam"
-    shell:
-        "mv {input} {output}"
-
-rule star_align_all:
-    input:
-        expand(RESULTS_DIR+"/star/{sample}.bam", sample=SAMPLES)
-
-rule stringtie_quant:
-    input:
-        # merged_gtf="stringtie/merged.gtf",
-        genome_gtf=GTF,
-        sample_bam=RESULTS_DIR+"/star/{sample}.bam"
-    output:
-        gtf=RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf",
-        ctabs=expand(
-            RESULTS_DIR+"/stringtie/{{sample}}/{name}.ctab",
-            name=["i2t", "e2t", "i_data", "e_data", "t_data"]
-        )
-    threads: THREADS
-    shell:
-        """
-        stringtie \
-            -e \
-            -B \
-            -p {threads} \
-            --fr \
-            -G {input.genome_gtf} \
-            -o {output.gtf} \
-            {input.sample_bam}
-        """
-
-rule stringtie_quant_all:
-    input: expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf", sample=SAMPLES)
-
-rule run_star_stringtie_multiqc:
-    input:
-        fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
-                              sample=SAMPLES),
-        alignment_results=expand(RESULTS_DIR+"/star/{sample}.bam",
-                                 sample=SAMPLES),
-        contamination=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
-                             sample = SAMPLES),
-	    quant_results=expand(RESULTS_DIR+"/stringtie/{sample}/{sample}.gtf",
-                             sample=SAMPLES)
-    output:
-        LOG_DIR+"/multiqc_star_stringtie_align_report.html"
-    params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m star",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
-
-rule star_with_stringtie_qc:
-    input: LOG_DIR+"/multiqc_star_stringtie_align_report.html"
-    version: 1.1
-
-rule featureCounts:
-    input: expand(RESULTS_DIR+"/star/{sample}.bam", sample=SAMPLES)
-    output: 
-        counts=RESULTS_DIR+"/featureCounts/counts.txt",
-        summary=RESULTS_DIR+"/featureCounts/counts.txt.summary"
-    threads: THREADS
-    params:
-        annotation = GTF
-    shell:
-        """
-        featureCounts \
-            -a {params.annotation} \
-            -F GTF \
-            -g gene_name \
-            -p \
-            -s 2 \
-            -T {threads} \
-            -o {output.counts} \
-            -B \
-            -C \
-            {input}
-        """
-
-rule compress_featureCounts:
-    input: RESULTS_DIR+"/featureCounts/counts.txt"
-    output: RESULTS_DIR+"/featureCounts/counts.txt.gz"
-    threads: THREADS
-    shell: "pigz -p {threads} {input}"
-
-rule run_star_with_featureCounts_qc:
-    input:
-        fastqc_results=expand(RESULTS_DIR+"/qc/{sample}/{sample}_fastqc.html",
-                              sample=SAMPLES),
-        alignment_results=expand(RESULTS_DIR+"/star/{sample}.bam",
-                                 sample=SAMPLES),
-        contamination=expand(LOG_DIR+"/trimmed/contam_{sample}.csv",
-                             sample = SAMPLES),
-	    quant_results=RESULTS_DIR+"/featureCounts/counts.txt.summary"
-    output:
-        LOG_DIR+"/multiqc_star_featureCounts_align_report.html"
-    params:
-        "-m fastqc",
-        "-m bbmap",
-        "-m star",
-        "-m featureCounts",
-        "-ip"
-    wrapper:
-        "0.38.0/bio/multiqc"
-
-rule featureCounts_all:
-    input: 
-        counts=RESULTS_DIR+"/featureCounts/counts.txt.gz",
-        summary=LOG_DIR+"/multiqc_star_featureCounts_align_report.html"
-
-rule convert_for_rsem:
-    input:
-        RESULTS_DIR+"/star/{sample}.bam"
-    output:
-        RESULTS_DIR+"/rsem_sorted/{sample}.bam"
-    threads:
-        THREADS
-    singularity:
-        "docker://dceoy/rsem"
-    params:
-        mem_per_thread=8
-    shell:
-        """
-        convert-sam-for-rsem --num-threads {threads} --memory-per-thread {params.mem_per_thread} {input} {output}
-        """
-
-rule convert_all_for_rsem:
-    input: 
-        expand(RESULTS_DIR+"/rsem_sorted/{sample}.bam", sample=SAMPLES)
+    return """    -${c_dim}--------------------------------------------------${c_reset}-
+                                            ${c_green},--.${c_black}/${c_green},-.${c_reset}
+    ${c_blue}        ___     __   __   __   ___     ${c_green}/,-._.--~\'${c_reset}
+    ${c_blue}  |\\ | |__  __ /  ` /  \\ |__) |__         ${c_yellow}}  {${c_reset}
+    ${c_blue}  | \\| |       \\__, \\__/ |  \\ |___     ${c_green}\\`-._,-`-,${c_reset}
+                                            ${c_green}`._,._,\'${c_reset}
+    ${c_purple}  milescsmith/rnaseq v${workflow.manifest.version}${c_reset}
+    -${c_dim}--------------------------------------------------${c_reset}-
+    """.stripIndent()
+}
