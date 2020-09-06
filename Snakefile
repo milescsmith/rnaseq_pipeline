@@ -67,8 +67,6 @@ SAMPLES = [_.split("/")[-1]
            in SAMPLES]
 
 # Testing code, used when Snakemake seems unable to find the files.
-print(RAW_DATA)
-print(SAMPLES[0])
 
 rule run_all:
     input:
@@ -85,10 +83,12 @@ rule initial_qc:
     params:
         outdir=RESULTS+"/qc/{sample}"
     output:
-        html=RESULTS+"/qc/{sample}/{sample}_fastqc.html",
-        zip=RESULTS+"/qc/{sample}/{sample}_fastqc.zip"
+        html1=RESULTS+"/qc/{sample}/{sample}_R1_001_fastqc.html",
+        html2=RESULTS+"/qc/{sample}/{sample}_R2_001_fastqc.html",
+        zip1=RESULTS+"/qc/{sample}/{sample}_R1_001_fastqc.zip",
+        zip2=RESULTS+"/qc/{sample}/{sample}_R2_001_fastqc.zip"
     singularity:
-        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/fastqc:0.11.8"
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/fastqc:0.11.9"
     log:
         LOGS+"/fastqc/fastqc_{sample}.log"
     threads:
@@ -112,12 +112,13 @@ rule initial_qc_all:
                sample=SAMPLES)
     version: 2.0
 
-rule perfom_trimming:
+rule perform_trimming:
     """Use BBmap to trim known adaptors, low quality reads, 
     and polyadenylated sequences and filter out ribosomal reads"""
     input:
         R1=RAW_DATA+"/{sample}_R1_001.fastq.gz",
         R2=RAW_DATA+"/{sample}_R2_001.fastq.gz",
+        make_qc_run=rules.initial_qc.output
     params:
         out_dir="trimmed",
         phred_cutoff=5,
@@ -133,7 +134,7 @@ rule perfom_trimming:
         # to collect metrics on how many ribosomal reads were eliminated
         contam=LOGS+"/trimmed/contam_{sample}.csv"
     singularity:
-        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/bbmap:38.72"
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/bbmap:38.86"
     version: 2.1
     shell:
         """
@@ -214,7 +215,7 @@ rule build_salmon_index:
         THREADS
     log: LOGS+"/salmon_index"
     singularity:
-        "docker://registry.gitlab.com/guthridge_informatics/salmon:1.1.0"
+        "docker://registry.gitlab.com/guthridge_informatics/salmon:1.3.0"
     version: 1.0
     shell:
         """
@@ -236,16 +237,16 @@ rule salmon_quant:
         fq1=RESULTS+"/trimmed/{sample}.R1.fq.gz",
         fq2=RESULTS+"/trimmed/{sample}.R2.fq.gz",
     output:
-        quant=RESULTS+"/viral_salmon/{sample}/quant.sf",
+        quant=RESULTS+"/salmon/{sample}/quant.sf",
     params:
         index=directory(SALMON_INDEX),
         threads=THREADS,
-        outdir=directory(RESULTS+"/viral_salmon/{sample}/")
+        outdir=directory(RESULTS+"/salmon/{sample}/")
     log:
         LOGS+"/salmon/salmon_{sample}.log"
     singularity:
-        "docker://combinelab/salmon:1.0.0"
-    version: 3.0
+        "docker://combinelab/salmon:1.3.0"
+    version: 4.0
     shell:
         """
         salmon quant \
@@ -264,30 +265,34 @@ rule salmon_quant_all:
     """Target rule to force alignement of all the samples. If aligning 
     with Salmon, use this as the target run since Salmon typically does 
     not make the bam files needed below."""
-    input: expand(RESULTS+"/viral_salmon/{sample}/quant.sf", sample=SAMPLES)
+    input: expand(RESULTS+"/salmon/{sample}/quant.sf", sample=SAMPLES)
     version: 1.0
 
 rule run_salmon_multiqc:
     input:
-        alignment_results=set([path.dirname(i) 
-                               for i 
-                               in expand(RESULTS+"/salmon/{sample}/quant.sf",sample=SAMPLES)
-        ]),
-        fastqc_results=set([path.dirname(j)
-                            for j
-                            in expand(RESULTS+"/qc/{sample}/{sample}_fastqc.html",sample=SAMPLES)
-        ]),
-        contam=set([path.dirname(k)
-                    for k
-                    in expand(LOGS+"/trimmed/contam_{sample}.csv",sample = SAMPLES)
-        ])
+        alignment_results=[f"{RESULTS}/salmon/{sample}/quant.sf"
+                           for sample
+                           in SAMPLES
+                           ],
+        fastqc_results_read1=[f"{RESULTS}/qc/{sample}/{sample}_R1_001_fastqc.html"
+                              for sample
+                              in SAMPLES
+                              ],
+        fastqc_results_read2=[f"{RESULTS}/qc/{sample}/{sample}_R2_001_fastqc.html"
+                              for sample
+                              in SAMPLES
+                              ],
+        contam=[f"{LOGS}/trimmed/contam_{sample}.csv"
+                for sample
+                in SAMPLES
+                ]
     output:
         LOGS+"/multiqc_salmon_align_report.html"
     params:
         outdir=LOGS,
         reportname="/multiqc_salmon_align_report.html"
     singularity:
-        "docker://ewels/multiqc:1.7"
+        "docker://ewels/multiqc:1.9"
     shell:
         """
         multiqc \
@@ -298,7 +303,8 @@ rule run_salmon_multiqc:
             --outdir {params.outdir} \
             --filename {params.reportname} \
             {input.alignment_results} \
-            {input.fastqc_results} \
+            {input.fastqc_results_read1} \
+            {input.fastqc_results_read2} \
             {input.contam}
         """
 
@@ -323,7 +329,9 @@ rule compress_salmon_results:
         """
 
 rule can_fish:
-    input: expand(RESULTS+"/viral_salmon/{sample}/quant.sf.gz", sample=SAMPLES)
+    input:
+        alignments=expand(RESULTS+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES),
+        qc=rules.run_salmon_multiqc.output
 
 rule star_align:
     input:
@@ -338,7 +346,7 @@ rule star_align:
         outdir=RESULTS+"/star/{sample}/"
     threads: THREADS
     singularity:
-        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/star"
+        "docker://registry.gitlab.com/milothepsychic/rnaseq_pipeline/star:2.7.5c"
     shell:
     # The following options are based on the given ENCODE options
     # in the STAR manual
@@ -425,7 +433,7 @@ rule run_star_stringtie_multiqc:
         outdir=LOGS,
         reportname="/multiqc_star_stringtie_align_report.html"
     singularity:
-        "docker://ewels/multiqc:1.7"
+        "docker://ewels/multiqc:1.9"
     shell:
         """
         multiqc \
@@ -499,7 +507,7 @@ rule run_star_with_featureCounts_qc:
         outdir=LOGS,
         reportname="/multiqc_star_featureCounts_align_report.html"
     singularity:
-        "docker://ewels/multiqc:1.7"
+        "docker://ewels/multiqc:1.9"
     shell:
         """
         multiqc \
@@ -605,7 +613,7 @@ rule run_rsem_multiqc:
         outdir=LOGS,
         reportname="/multiqc_rsem_report.html"
     singularity:
-        "docker://ewels/multiqc:1.7"
+        "docker://ewels/multiqc:1.9"
     shell:
         """
         multiqc \

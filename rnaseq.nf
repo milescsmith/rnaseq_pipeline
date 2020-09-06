@@ -75,7 +75,11 @@ params.input = "${params.fastq}/*_S*_L00*_R{1,2}_00*.fastq.gz"
 
 Channel
     .fromFilePairs( params.reads, checkIfExists: true, flat: true )
-    .into{ raw_fastq_fastqc_reads_ch; raw_fastq_to_trim_ch }
+    .set{ raw_fastq_fastqc_reads_ch }
+
+Channel
+    .fromFilePairs( params.reads, checkIfExists: true, flat: true )
+    .set{ raw_fastq_to_trim_ch }
 
 Channel
     .fromPath( params.polyA, checkIfExists: true)
@@ -95,20 +99,19 @@ Channel
 
 process initial_qc {
     //Use Fastqc to examine fastq quality
-    
+
     tag "FastQC"
     container "registry.gitlab.com/milothepsychic/rnaseq_pipeline/fastqc:0.11.9"
-    queue "highmem"
     
-    publishDir "${params.qc}/${sample_id}", mode: "copy", pattern: "*.html", overwrite: true
-    publishDir "${params.qc}/${sample_id}", mode: "copy", pattern: "*.zip", overwrite: true
-    
+    publishDir "${params.qc}/${sample_id}", mode: "copy", pattern: "*.html", overwrite: false
+    publishDir "${params.qc}/${sample_id}", mode: "copy", pattern: "*.zip", overwrite: false
+
     input:
         tuple val(sample_id), file(read1), file(read2) from raw_fastq_fastqc_reads_ch
 
     output:
          file "*.html" into fastqc_results_ch
-    
+
     script:
         """
         fastqc \
@@ -122,17 +125,12 @@ process initial_qc {
 process perfom_trimming {
     /* Use BBmap to trim known adaptors, low quality reads, and
        polyadenylated sequences and filter out ribosomal reads */
-    
+
     tag "trim"
     container "registry.gitlab.com/milothepsychic/rnaseq_pipeline/bbmap:38.86"
-    queue "highmem"
-    
+
     input:
         tuple val(sample_id), file(read1), file(read2) from raw_fastq_to_trim_ch
-        file polyA from polyA_ref
-        file truseq_adapter from truseq_adapter_ref
-        file truseq_rna_adapter from truseq_rna_adapter_ref
-        file rRNAs from rRNA_ref
 
     output:
         file "*.trimmed.R1.fq.gz" into trimmed_read1_ch
@@ -149,7 +147,7 @@ process perfom_trimming {
         out2=${sample_id}.trimmed.R2.fq.gz \
         outm=removed_${sample_id}.R1.fq.gz \
         outm2=removed_${sample_id}.R2.fq.gz \
-        ref=${polyA},${truseq_adapter},${truseq_rna_adapter},${rRNAs} \
+        ref=${params.polyA},${params.truseq_adapter},${params.truseq_rna_adapter},${params.rRNAs} \
         stats=contam_${sample_id}.csv \
         statscolumns=3 \
         k=13 \
@@ -174,7 +172,7 @@ process salmon_quant {
     output:
         file "${sample_id}/quant.sf" into pseudoquant_ch, pseudoquant_to_compress_ch
         file "${sample_id}/logs/salmon_quant.log" into pseudoquant_log_ch
-        val sample_name into pseudoquant_name
+        val sample_id into pseudoquant_name, pseudoquant_name2
 
     script:
     """
@@ -192,21 +190,22 @@ process salmon_quant {
 }
 
 process multiqc {
-    /* collect all qc metric into one report */
+    /* collect all qc metrics into one report */
     
     tag "multiqc"
     container "docker://ewels/multiqc:1.9"
     
-    publishDir "{params.qc}", mode: "copy", pattern: "multiqc_report.html", overwrite: true
+    publishDir path: "${params.qc}", mode: "copy", overwrite: true
     
     input:
-        file alignment_results from pseudoquant_ch.collect()
-        file fastqc_results from fastqc_results_ch.collect()
-        file contam from contamination_ch.collect()
-        file pseudoquant_log from pseudoquant_log_ch.collect()
+        val sample_id from pseudoquant_name2
+        file ("${sample_id}/quant.sf") from pseudoquant_ch.collect().ifEmpty([])
+        file ("${sample_id}/*_fastqc.html") from fastqc_results_ch.collect().ifEmpty([])
+        file ("${sample_id}/contam.csv") from contamination_ch.collect().ifEmpty([])
+        file ("${sample_id}/salmon.log") from pseudoquant_log_ch.collect().ifEmpty([])
     
     output:
-        file "/multiqc_report.html" into multiqc_ch
+        file "*.html" into multiqc_ch
     
     script:
     """
@@ -214,10 +213,9 @@ process multiqc {
         -m fastqc \
         -m bbmap \
         -m salmon \
+        -d \
         -ip \
-        ${alignment_results} \
-        ${fastqc_results} \
-        ${contam} \
+        . \
     """
 }
 
@@ -228,18 +226,18 @@ process compress_salmon_results {
     tag "compress results"
     container "registry.gitlab.com/milothepsychic/rnaseq_pipeline/pigz:2.4"
 
-    publishDir "${params.aligned}", mode: "copy", pattern: "*.quant.sf.gz", overwrite: false
+    publishDir "${params.aligned}/${sample_id}", mode: "copy", pattern: "quant.sf.gz", overwrite: false
 
     input:
         file quant from pseudoquant_to_compress_ch
         val sample_id from pseudoquant_name
-        
+
     output:
-        file("${sample_id}/quant.sf.gz")
-    
+        file("quant.sf.gz")
+
     script:
     """
-    pigz -v -p ${task.cpus} ${sample_id}/${quant}
+    pigz -v -f -p ${task.cpus} ${quant}
     """
 }
 
