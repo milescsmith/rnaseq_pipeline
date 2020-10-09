@@ -1,5 +1,6 @@
+#!/usr/bin/env nextflow
 /*
- * Copyright (c) 2019, Oklahoma Medical Research Foundation (OMRF).
+ * Copyright (c) 2020, Oklahoma Medical Research Foundation (OMRF).
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,100 +11,146 @@
  *
  */
 
-
-// RNAseq pipeline for processing Novaseq runs using Google Life Sciences
-// pipelines.
-
+// Nextflow pipeline for processing PacBio IsoSeq runs
 // Author: Miles Smith <miles-smith@omrf.org>
+// Date: 2020/09/04
+// Version: 0.1.0
 
-// Originally derived from the nextflow-io/rnaseq-nf proof of concept by 
-// Paolo Di Tommaso <paolo.ditommaso@gmail.com>, Emilio Palumbo
-//  <emiliopalumbo@gmail.com>, and Evan Floden <evanfloden@gmail.com>
+// File locations and program parameters
 
+def helpMessage() {
+    log.info nfcoreHeader()
+    log.info """
+    Usage:
 
-params.bucket                   = "gs://memory-beta"
-params.reads_directory          = "test-data"
-params.reads_pattern            = "*_S*_L00*_R{1,2}_00*.fastq.gz"
-params.reads                    = "${params.bucket}/${params.reads_directory}/${params.reads_pattern}"
-params.outdir                   = "${params.bucket}/results"
-params.transcriptome            = "${params.bucket}/references/genomic/homo_sapiens/sequences/GRCh38.primary_assembly.genome.fa"
-params.miscellaneous_sequences  = "${params.bucket}/references/miscellaneous"
-params.polyA_ref                = "${params.miscellaneous_sequences}/polyA.fa.gz"
-params.truseq_adapter_ref       = "${params.miscellaneous_sequences}/truseq.fa.gz"
-params.truseq_rna_adapter_ref   = "${params.miscellaneous_sequences}/truseq_rna.fa.gz"
-params.rRNA_ref                 = "${params.miscellaneous_sequences}/human_ribosomal.fa"
-params.salmon_index             = "${params.bucket}/references/genomic/homo_sapiens/indices/salmon/ensembl97"
+      The typical command for running the pipeline is as follows:
+ 
+      nextflow run milescsmith/nf-rnaseq \\
+        --project /path/to/project \\
+        --profile slurm
 
-log.info """\
- G O O G L E - R N A S E Q - N F   P I P E L I N E
- ===================================
- reads        : ${params.reads}
- outdir       : ${params.outdir}
- """
+    Mandatory arguments:
+      --project             Directory to use as a base where raw files are 
+                            located and results and logs will be written
+      --profile             Configuration profile to use for processing.
+                            Available: slurm, gcp, standard
+      
+    Optional parameters:
 
-polyA_reference               = file( params.polyA_ref )
-truseq_adapters_reference     = file( params.truseq_adapter_ref )
-truseq_rna_adapters_reference = file( params.truseq_rna_adapter_ref )
-rRNA_reference                = file( params.rRNA_ref )
+    Reference locations:
+      --species             By default, uses "chimera" for a mixed human/viral
+                            index.
+      --genome
+      --truseq_adapter
+      --truseq_rna_adapter
+      --rRNAs
+      --polyA
+      --salmon_index
+    
+    Results locations:      If not specified, these will be created relative to
+                            the `project` argument
+                            Note: if undefined, the pipeline expects the raw BAM
+                            file to be located in `/path/to/project/01_raw`
+      --logs                Default: project/logs
+      --raw_data            Default: project/data/raw_data
+      --bcls                Default: project/data/raw_data/bcls
+      --raw_fastqs          Default: project/data/raw_data/fastqs
+      --results             Default: project/data/raw_data/data/results
+      --qc                  Default: project/data/raw_data/data/results/qc
+      --trimmed             Default: project/data/raw_data/data/results/trimmed
+      --aligned             Default: project/data/raw_data/data/results/aligned
 
-Channel
-    .fromFilePairs( params.reads, checkExists:true )
-    .into { qc_read_pairs; read_pairs}
-
-salmon_index_ch = Channel.fromPath( params.salmon_index )
-
-process fastqc {
-    tag "FASTQC on $sample"
-    publishDir "${params.outdir}/qc", mode: "copy", overwrite: true
-
-    input:
-    set sample, file(reads) from qc_read_pairs
-
-    output:
-    file "*_fastqc.{html,zip}" into fastqc_channel
-
-
-    script:
-    """
-    fastqc -t ${task.cpus} -f fastq -q ${reads}
-    """
+    Other:
+      --help                Show this message
+    """.stripIndent()
 }
 
-process bbduk_trim {
-    tag "Trimming $sample"
-    publishDir "${params.outdir}/trimmed", mode: 'copy', pattern: '*.fq.gz', overwrite: true
-    publishDir "${params.outdir}/logs", mode: 'copy', pattern: '*.csv', overwrite: true
-    machineType 'n1-standard-8'
-    cpus 8
+// Show help message
+if (params.help) {
+    helpMessage()
+    exit 0
+}
+
+params.input = "${params.fastq}/*_S*_L00*_R{1,2}_00*.fastq.gz"
+
+Channel
+    .fromFilePairs( params.reads, checkIfExists: true, flat: true )
+    .set{ raw_fastq_fastqc_reads_ch }
+
+Channel
+    .fromFilePairs( params.reads, checkIfExists: true, flat: true )
+    .set{ raw_fastq_to_trim_ch }
+
+/*
+Channel
+    .fromPath( params.polyA, checkIfExists: true)
+    .set{ polyA_ref }
+
+Channel
+    .fromPath( params.truseq_adapter, checkIfExists: true)
+    .set{ truseq_adapter_ref }
+
+Channel
+    .fromPath( params.truseq_rna_adapter, checkIfExists: true)
+    .set{ truseq_rna_adapter_ref }
+
+Channel
+    .fromPath( params.rRNAs, checkIfExists: true)
+    .set{ rRNA_ref }
+*/
+
+process initial_qc {
+    //Use Fastqc to examine fastq quality
+
+    tag "FastQC"
+    container "registry.gitlab.com/milothepsychic/rnaseq_pipeline/fastqc:0.11.9"
+    
+    publishDir "${params.qc}/${sample_id}", mode: "copy", pattern: "*.html", overwrite: false
+    publishDir "${params.qc}/${sample_id}", mode: "copy", pattern: "*.zip", overwrite: false
 
     input:
-    set sample, file(reads) from read_pairs
-    file polyA_reference
-    file truseq_adapters_reference
-    file truseq_rna_adapters_reference
-    file rRNA_reference
+        tuple val(sample_id), file(read1), file(read2) from raw_fastq_fastqc_reads_ch
 
     output:
-    file "*.trimmed.fq.gz" into trimmed_reads_salmon_channel
-    file "*.trimmed.fq.gz" into trimmed_reads_star_channel
-    file "*.trimmed.fq.gz" into trimmed_reads_qc_channel
-    file "*.waste.fq.gz" into waste_channel
-    file "*.contamination.csv" into contamination_channel
-    val sample into sample_name_for_salmon_channel
-    val sample into sample_name_for_star_channel
-    
+         file "*.html" into fastqc_results_ch
 
+    script:
+        """
+        fastqc \
+            --noextract \
+            --format fastq \
+            --threads ${task.cpus} \
+            ${read1} ${read2}
+        """
+}
+
+process perfom_trimming {
+    /* Use BBmap to trim known adaptors, low quality reads, and
+       polyadenylated sequences and filter out ribosomal reads */
+
+    tag "trim"
+    container "registry.gitlab.com/milothepsychic/rnaseq_pipeline/bbmap:38.86"
+
+    input:
+        tuple val(sample_id), file(read1), file(read2) from raw_fastq_to_trim_ch
+
+    output:
+        file "*.trimmed.R1.fq.gz" into trimmed_read1_ch
+        file "*.trimmed.R2.fq.gz" into trimmed_read2_ch
+        val sample_id into trimmed_sample_name_ch
+        file "*.csv" into contamination_ch
+    
     script:
     """
     bbduk.sh \
-        in=${reads[0]} \
-        in2=${reads[1]} \
-        outu=${sample}.R1.trimmed.fq.gz \
-        out2=${sample}.R2.trimmed.fq.gz \
-        outm=${sample}.R1.waste.fq.gz \
-        outm2=${sample}.R2.waste.fq.gz \
-        ref=${polyA_reference},${truseq_adapters_reference},${truseq_rna_adapters_reference},${rRNA_reference} \
-        stats=${sample}.contamination.csv \
+        in=${read1} \
+        in2=${read2} \
+        outu=${sample_id}.trimmed.R1.fq.gz \
+        out2=${sample_id}.trimmed.R2.fq.gz \
+        outm=removed_${sample_id}.R1.fq.gz \
+        outm2=removed_${sample_id}.R2.fq.gz \
+        ref=${params.polyA},${params.truseq_adapter},${params.truseq_rna_adapter},${params.rRNAs} \
+        stats=contam_${sample_id}.csv \
         statscolumns=3 \
         k=13 \
         ktrim=r \
@@ -111,103 +158,110 @@ process bbduk_trim {
         mink=5 \
         qtrim=r \
         trimq=10 \
-        minlength=20 \
-        threads=${task.cpus}
+        minlength=20
     """
 }
 
-process salmon_align {
-    tag "Aligning $sample"
-    publishDir "${params.outdir}/aligned/salmon", mode: 'copy', overwrite: true
-    machineType 'n1-highmem-8'
-    cpus 8
+process salmon_quant {
+    tag "salmon quant"
+    container "docker://combinelab/salmon:1.3.0"
 
     input:
-    file salmon_index from salmon_index_ch.collect()
-    val sample from sample_name_for_salmon_channel
-    file reads name "*.R?.trimmed.fq.gz" from trimmed_reads_salmon_channel
-    
+        val sample_id from trimmed_sample_name_ch
+        file trimmed_read1 from trimmed_read1_ch
+        file trimmed_read2 from trimmed_read2_ch
+
     output:
-    file "${sample}" into aligned_channel
+        file "${sample_id}/quant.sf" into pseudoquant_ch, pseudoquant_to_compress_ch
+        file "${sample_id}/logs/salmon_quant.log" into pseudoquant_log_ch
+        val sample_id into pseudoquant_name, pseudoquant_name2
 
     script:
     """
     salmon quant \
-        --libType MSR \
-        --threads {task.cpus} \
-        --index {salmon_index} \
+        --libType A \
+        --threads ${task.cpus} \
+        --index ${params.salmon_index} \
         --seqBias \
         --gcBias \
         --validateMappings \
-        --mates1 ${reads[0]} \
-        --mates2 ${reads[1]} \
-        --output ${sample} \
+        --mates1 ${trimmed_read1} \
+        --mates2 ${trimmed_read2} \
+        --output ${sample_id} \
     """
-}
-
-process star {
-    tag "Aligning $sample"
-    publishDir "${params.outdir}/aligned/salmon", mode: 'copy', overwrite: true
-    machineType 'n1-highmem-8'
-    cpus 8
-
-    input:
-    file star_index from star_index_ch.collect()
-    val sample from sample_name_for_star_channel
-    file reads name "*.R?.trimmed.fq.gz" from trimmed_reads_star_channel
-    
-    output:
-    file "${sample}" into aligned_channel
-
-    script:
-        """
-        STAR \
-            --outFilterType BySJout \
-            --outFilterMultimapNmax 20 \
-            --alignSJoverhangMin 8 \
-            --alignSJDBoverhangMin 1 \
-            --outFilterMismatchNmax 999 \
-            --outFilterMismatchNoverReadLmax 0.04 \
-            --alignIntronMin 20 \
-            --alignIntronMax 1000000 \
-            --alignMatesGapMax 1000000 \
-            --genomeDir ${star_index} \
-            --quantMode GeneCounts \
-            --outFileNamePrefix ${sample} \
-            --outSAMtype BAM SortedByCoordinate \
-            --readFilesIn ${reads[0]} ${reads[1]} \
-            --readFilesCommand gunzip -c \
-            --runThreadN ${task.cpus}
-        """
 }
 
 process multiqc {
-    publishDir params.outdir, mode:'copy'
-
+    /* collect all qc metrics into one report */
+    
+    tag "multiqc"
+    container "docker://ewels/multiqc:1.9"
+    
+    publishDir path: "${params.qc}", mode: "copy", overwrite: true
+    
     input:
-    file "${sample}" from aligned_channel.collect()
-    file "*_fastqc.zip" from fastqc_channel.collect()
-    file "*.trimmed.fq.gz" from trimmed_reads_qc_channel.collect()
-    file "* .waste.fq.gz" from waste_channel.collect()
-    file "${sample}.contamination.csv" from contamination_channel.collect()
-
+        val sample_id from pseudoquant_name2
+        file ("${sample_id}/quant.sf") from pseudoquant_ch.collect().ifEmpty([])
+        file ("${sample_id}/*_fastqc.html") from fastqc_results_ch.collect().ifEmpty([])
+        file ("${sample_id}/contam.csv") from contamination_ch.collect().ifEmpty([])
+        file ("${sample_id}/salmon.log") from pseudoquant_log_ch.collect().ifEmpty([])
+    
     output:
-    file('multiqc_report.html') optional true
-
+        file "*.html" into multiqc_ch
+    
     script:
-    """multiqc -m bcl2fastq -m fastqc -m bbmap -m salmon -ip -v .
     """
-
+    multiqc \
+        -m fastqc \
+        -m bbmap \
+        -m salmon \
+        -d \
+        -ip \
+        . \
+    """
 }
 
-// process compress_results{
+process compress_salmon_results {
+    /* No reason not to compress these results since tximport
+       can read gzipped files */
+    
+    tag "compress results"
+    container "registry.gitlab.com/milothepsychic/rnaseq_pipeline/pigz:2.4"
 
-//     script:
-//     """
-//     pigz -v -p {params.threads} {input.quant}
-//     """
-// }
+    publishDir "${params.aligned}/${sample_id}", mode: "copy", pattern: "quant.sf.gz", overwrite: false
 
-workflow.onComplete {
-	log.info ( workflow.success ? "\nDone!\n" : "Oops .. something went wrong" )
+    input:
+        file quant from pseudoquant_to_compress_ch
+        val sample_id from pseudoquant_name
+
+    output:
+        file("quant.sf.gz")
+
+    script:
+    """
+    pigz -v -f -p ${task.cpus} ${quant}
+    """
+}
+
+def nfcoreHeader() {
+    // Log colors ANSI codes
+    c_reset = params.monochrome_logs ? '' : "\033[0m";
+    c_dim = params.monochrome_logs ? '' : "\033[2m";
+    c_black = params.monochrome_logs ? '' : "\033[0;30m";
+    c_green = params.monochrome_logs ? '' : "\033[0;32m";
+    c_yellow = params.monochrome_logs ? '' : "\033[0;33m";
+    c_blue = params.monochrome_logs ? '' : "\033[0;34m";
+    c_purple = params.monochrome_logs ? '' : "\033[0;35m";
+    c_cyan = params.monochrome_logs ? '' : "\033[0;36m";
+    c_white = params.monochrome_logs ? '' : "\033[0;37m";
+
+    return """    -${c_dim}--------------------------------------------------${c_reset}-
+                                            ${c_green},--.${c_black}/${c_green},-.${c_reset}
+    ${c_blue}        ___     __   __   __   ___     ${c_green}/,-._.--~\'${c_reset}
+    ${c_blue}  |\\ | |__  __ /  ` /  \\ |__) |__         ${c_yellow}}  {${c_reset}
+    ${c_blue}  | \\| |       \\__, \\__/ |  \\ |___     ${c_green}\\`-._,-`-,${c_reset}
+                                            ${c_green}`._,._,\'${c_reset}
+    ${c_purple}  milescsmith/rnaseq v${workflow.manifest.version}${c_reset}
+    -${c_dim}--------------------------------------------------${c_reset}-
+    """.stripIndent()
 }

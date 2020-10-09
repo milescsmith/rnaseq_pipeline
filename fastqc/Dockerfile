@@ -1,12 +1,16 @@
-FROM gliderlabs/alpine:3.9
+FROM ubuntu:bionic
 
-RUN apk --no-cache --update-cache -U add tzdata && \
-    cp /usr/share/zoneinfo/America/Chicago /etc/localtime && \
-    apk --no-cache --update-cache add \
-        curl \
-        openjdk8 \
-        perl && \
-     rm -rf /var/cache/apk/*
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update --fix-missing && \
+   apt install --no-install-recommends -y \
+      curl \
+      openjdk-11-jdk \
+      openjdk-11-jre \
+      perl \
+      unzip && \
+   apt-get clean && \
+   rm -rf /tmp/downloaded_packages/* && \
+   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt
 
