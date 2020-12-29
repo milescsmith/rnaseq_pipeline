@@ -1,8 +1,8 @@
 #! /bin/bash -l
 
 #SBATCH -J demux
-#SBATCH -o 3_5_rerun_mixed_mkfastq.log
-#SBATCH --mail-user=kevin-thomas@omrf.org
+#SBATCH -o rnaseq_process.log
+#SBATCH --mail-user=miles-smith@omrf.org
 #SBATCH --mail-type=ALL
 #SBATCH --mem=128
 #SBATCH --partition=serial

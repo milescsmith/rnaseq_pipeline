@@ -17,39 +17,39 @@ FTP = FTPRemoteProvider()
 
 # Read in the values from the configuration file and build up the locations
 # of files required in the pipeline
-PROJECT = config["PROJECT"]
-RAW_DATA = PROJECT + config["RAW_DATA"]
-RESULTS = PROJECT + config["RESULTS"]
-LOGS = PROJECT + config["LOGS"]
+PROJECT               = config["PROJECT"]
+RAW_DATA              = PROJECT + config["RAW_DATA"]
+RESULTS               = PROJECT + config["RESULTS"]
+LOGS                  = PROJECT + config["LOGS"]
 
-REFERENCES = config["REFERENCES"]
-GENOMIC_FILES = REFERENCES + config["GENOMIC_FILES"]
-SPECIES = GENOMIC_FILES + config["SPECIES"]
+REFERENCES            = config["REFERENCES"]
+GENOMIC_FILES         = REFERENCES    + config["GENOMIC_FILES"]
+SPECIES               = GENOMIC_FILES + config["SPECIES"]
 
-SEQUENCES = SPECIES + config["SEQUENCES"]
-GTF = SEQUENCES + config["GTF"]
-FASTA = SEQUENCES + config["FASTA"]
+SEQUENCES             = SPECIES   + config["SEQUENCES"]
+GTF                   = SEQUENCES + config["GTF"]
+FASTA                 = SEQUENCES + config["FASTA"]
 
-INDICES = SPECIES + config["INDICES"]
-STAR_INDEX = INDICES + config["STAR_INDEX"]
-SALMON_INDEX = INDICES + config["SALMON_INDEX"]
-SUBREAD_INDEX = INDICES + config["SUBREAD_INDEX"]
-RSEM_INDEX = INDICES + config["RSEM_INDEX"]
+INDICES               = SPECIES + config["INDICES"]
+STAR_INDEX            = INDICES + config["STAR_INDEX"]
+SALMON_INDEX          = INDICES + config["SALMON_INDEX"]
+SUBREAD_INDEX         = INDICES + config["SUBREAD_INDEX"]
+RSEM_INDEX            = INDICES + config["RSEM_INDEX"]
 
-MISCELLANEOUS = REFERENCES + config["MISCELLANEOUS"]
-POLY_A = MISCELLANEOUS + config["POLY_A"]
-TRUSEQ_RNA = MISCELLANEOUS + config["TRUSEQ_RNA"]
-TRUSEQ = MISCELLANEOUS + config["TRUSEQ"]
-RRNAREF = MISCELLANEOUS + config["RRNAREF"]
+MISCELLANEOUS         = REFERENCES    + config["MISCELLANEOUS"]
+POLY_A                = MISCELLANEOUS + config["POLY_A"]
+TRUSEQ_RNA            = MISCELLANEOUS + config["TRUSEQ_RNA"]
+TRUSEQ                = MISCELLANEOUS + config["TRUSEQ"]
+RRNAREF               = MISCELLANEOUS + config["RRNAREF"]
 
-TRANSCRIPTOME = config["TRANSCRIPTOME"]
-GENOME = config["GENOME"]
+TRANSCRIPTOME         = config["TRANSCRIPTOME"]
+GENOME                = config["GENOME"]
 
 TRANSCRIPTOME_VERSION = TRANSCRIPTOME.split("/")[-1]
-TRANSCRIPTOME_NAME = ".".join(TRANSCRIPTOME_VERSION.split(".")[:2])
-GENOME_VERSION = GENOME.split("/")[-1]
+TRANSCRIPTOME_NAME    = ".".join(TRANSCRIPTOME_VERSION.split(".")[: 2])
+GENOME_VERSION        = GENOME.split("/")[-1]
 
-USER = environ.get("USER")
+USER                  = environ.get("USER")
 
 THREADS = 8
 
@@ -66,17 +66,17 @@ SAMPLES = [_.split("/")[-1]
            for _
            in SAMPLES]
 
-# Testing code, used when Snakemake seems unable to find the files.
-
+# When the script is called without a target rule, this is used by default.
 rule run_all:
     input:
-        # kallisto=LOGS+"/multiqc_kallisto_align_report.html",
         salmon=expand(RESULTS+"/salmon/{sample}/quant.sf.gz", sample=SAMPLES),
         star_with_stringtie=LOGS+"/multiqc_star_stringtie_align_report.html",
         star_with_featureCounts=LOGS+"/multiqc_star_featureCounts_align_report.html"
 
 rule initial_qc:
-    """Use Fastqc to examine fastq quality."""
+    """
+    Use Fastqc to examine fastq quality.
+    """
     input:
         R1=RAW_DATA+"/{sample}_R1_001.fastq.gz",
         R2=RAW_DATA+"/{sample}_R2_001.fastq.gz"
@@ -106,7 +106,9 @@ rule initial_qc:
         """
 
 rule initial_qc_all:
-    """Target rule to run just the inital Fastqc"""
+    """
+    Target rule to run just the inital Fastqc
+    """
     input:
         expand(RESULTS+"/qc/{sample}/{sample}_fastqc.html", 
                sample=SAMPLES)
@@ -118,7 +120,7 @@ rule perform_trimming:
     input:
         R1=RAW_DATA+"/{sample}_R1_001.fastq.gz",
         R2=RAW_DATA+"/{sample}_R2_001.fastq.gz",
-        make_qc_run=rules.initial_qc.output
+        make_qc_run=rules.initial_qc.output # force the initial_qc output as a dependency so that it is run
     params:
         out_dir="trimmed",
         phred_cutoff=5,
@@ -160,6 +162,7 @@ rule perform_trimming:
             threads={threads}
         """
 
+
 rule expand_trimming:
     input:
         R1=expand(RESULTS+"/trimmed/{sample}.R1.fq.gz",
@@ -173,8 +176,11 @@ rule expand_trimming:
         contam=expand(LOGS+"/contam_{sample}.csv",
                       sample = SAMPLES)
 
+# should the salmon index not be available, the next three rules build one
 rule retrieve_source_sequences:
-    """If the files to build a reference are not available, retrieve them"""
+    """
+    If the files to build a reference are not available, retrieve them
+    """
     input:
         transcriptome=FTP.remote(TRANSCRIPTOME),
         genome=FTP.remote(GENOME)
@@ -232,10 +238,12 @@ rule build_salmon_index:
         """
 
 rule salmon_quant:
-    """Psuedoalign sequences using Salmon. MUCH faster than STAR and 
+    """
+    Psuedoalign sequences using Salmon. MUCH faster than STAR and 
     I"m not convinced that STAR is any better at the alignment.
     Also, Salmon results are easier to translate into gene-level counts than 
-    Kallisto."""
+    Kallisto.
+    """
     input:
         fq1=RESULTS+"/trimmed/{sample}.R1.fq.gz",
         fq2=RESULTS+"/trimmed/{sample}.R2.fq.gz",
@@ -265,13 +273,19 @@ rule salmon_quant:
         """
 
 rule salmon_quant_all:
-    """Target rule to force alignement of all the samples. If aligning 
+    """
+    Target rule to force alignement of all the samples. If aligning 
     with Salmon, use this as the target run since Salmon typically does 
-    not make the bam files needed below."""
-    input: expand(RESULTS+"/salmon/{sample}/quant.sf", sample=SAMPLES)
+    not make the bam files needed below.
+    """
+    input:
+        expand(RESULTS+"/salmon/{sample}/quant.sf", sample=SAMPLES)
     version: 1.1
 
 rule run_salmon_multiqc:
+    """
+    compile QC information from all the above steps
+    """
     input:
         alignment_results=[f"{RESULTS}/salmon/{sample}/quant.sf"
                            for sample
@@ -316,6 +330,10 @@ rule salmon_with_qc:
     version: 1.2
 
 rule compress_salmon_results:
+    """
+    salmon outputs uncompressed text files that are much larger than
+    necessary.  Speed up transfers, file importing, and minimize storage.
+    """
     input:
         quant=RESULTS+"/salmon/{sample}/quant.sf",
         #summarized_qc=LOGS+"/multiqc_salmon_align_report.html"
@@ -337,6 +355,9 @@ rule can_fish:
         qc=rules.run_salmon_multiqc.output
 
 rule star_align:
+    """
+    Alternatively, align using STAR
+    """
     input:
         fq1=RESULTS+"/trimmed/{sample}.R1.fq.gz",
         fq2=RESULTS+"/trimmed/{sample}.R2.fq.gz",
@@ -384,6 +405,9 @@ rule star_align_all:
         expand(RESULTS+"/star/{sample}.bam", sample=SAMPLES)
 
 rule stringtie_quant:
+    """
+    Quantify alignments
+    """
     input:
         # merged_gtf="stringtie/merged.gtf",
         genome_gtf=GTF,
@@ -457,6 +481,9 @@ rule star_with_stringtie_qc:
     version: 1.1
 
 rule featureCounts:
+    """
+    Alternative to Stringtie
+    """
     input: expand(RESULTS+"/star/{sample}.bam", sample=SAMPLES)
     output: 
         counts=RESULTS+"/featureCounts/counts.txt",
@@ -533,6 +560,9 @@ rule featureCounts_all:
         summary=LOGS+"/multiqc_star_featureCounts_align_report.html"
 
 rule rsem_analysis:
+    """
+    Yet another alignment/quantification alternative
+    """
     version: 1.0
     input:
         R1=RESULTS+"/trimmed/{sample}.R1.fq.gz",
